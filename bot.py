@@ -612,32 +612,34 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start(update, context)
             return
 
-        # профиль
+                # профиль
         if data == "profile":
-    usr = user_data.get(user_id, {})
-    username = query.from_user.username or "None"
-    sold_summary = get_sold_summary(user_id, lang)
+            usr = user_data.get(user_id, {})
+            username = query.from_user.username or "None"
+            sold_summary = get_sold_summary(user_id, lang)
 
-    text = get_text(
-        lang,
-        "profile_message",
-        user_id=user_id,
-        username=username,
-        successful_deals=usr.get("successful_deals", 0),
-        balance=usr.get("balance", 0.0),
-        valute=VALUTE,
-        wallet=usr.get("wallet", "Не указан"),
-        sold_summary=sold_summary,
-    )
+            text = get_text(
+                lang,
+                "profile_message",
+                user_id=user_id,
+                username=username,
+                successful_deals=usr.get("successful_deals", 0),
+                balance=usr.get("balance", 0.0),
+                valute=VALUTE,
+                wallet=usr.get("wallet", "Не указан"),
+                sold_summary=sold_summary,
+            )
 
-    await context.bot.send_message(
-        chat_id,
-        text,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
-        ),
-    )
-    return
+            # ВАЖНО: отправляем новое сообщение, НЕ редактируем фото
+            await context.bot.send_message(
+                chat_id,
+                text,
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
+                ),
+            )
+            return
+
 
         # управление постоянными кошельками
         if data == "wallet":
