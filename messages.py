@@ -73,7 +73,7 @@ RU_TEXTS = {
 
     "insufficient_balance_message": "❌ Недостаточно средств на балансе!",
 
-    "wallet_updated_message": "💼 Ваш кошелёк обновлен: {wallet}",
+    "wallet_updated_message": "💼 Ваш кошелек обновлен: {wallet}",
 
     "admin_panel_message": "Админ-панель:",
     "admin_view_deals_message": "Активные сделки:\n{deals_list}",
@@ -114,7 +114,7 @@ RU_TEXTS = {
     ),
 
     "awaiting_description_message": (
-        "🔗 Укажите ссылку или ссылки на NFT-подарок(и), которые вы продаёте:\n\n"
+        "🔗 Укажите ссылку или ссылки на NFT-подарок(и), которые вы продаёте в этой сделке:\n\n"
         "Пример: https://t.me/nft/Example-1"
     ),
 
@@ -131,10 +131,135 @@ RU_TEXTS = {
 
 # Тексты на английском языке
 EN_TEXTS = {
-    # (оставил без изменений)
+    "start_message": (
+        "Welcome to Astral OTC – a reliable P2P guarantor\n\n"
+        "💼 Buy and sell anything – safely!\n"
+        "From Telegram gifts and NFTs to tokens and fiat – transactions are easy and risk-free.\n\n"
+        "🔹 Convenient wallet management\n"
+        "🔹 Referral system\n\n"
+        "📖 How to use?\n"
+        "Read the instructions — https://t.me/otcgifttg/71034/71035\n\n"
+        "Choose the desired section below:"
+    ),
+
+    "wallet_message": (
+        "💼 Your current wallet: {wallet}\n\n"
+        "Send new wallet details to update or click the button below to return to the menu."
+    ),
+
+    "wallet_select_message": (
+        "💼 Add your payment method:\n\n"
+        "Please choose the wallet type below:"
+    ),
+
+    "wallet_type_prompt": (
+        "Please enter the details for {wallet_type}:"
+    ),
+
+    "create_deal_message": (
+        "💼 Create a deal\n\n"
+        "Enter the amount of {valute} in the format: 100.5"
+    ),
+
+    "referral_message": (
+        "🔗 Your referral link:\n{referral_link}\n\n"
+        "👥 Number of referrals: 0\n"
+        "💰 Earned from referrals: 0 {valute}\n"
+        "40% of the bot's commission"
+    ),
+
+    "change_lang_message": (
+        "🌍 Choose your language:\n\n"
+        "Choose language:"
+    ),
+
+    "lang_set_message": "Language set to English.",
+
+    "deal_created_message": (
+        "✅ Deal successfully created!\n\n"
+        "💰 Amount: {amount} {valute}\n"
+        "🎁 NFT gift(s):\n{description}\n\n"
+        "🔗 Buyer link: {deal_link}"
+    ),
+
+    "payment_confirmed_message": (
+        "✅ Payment received for deal #{deal_id}\n\n"
+        "💰 Amount: {amount} {valute}\n"
+        "🎁 NFT gift(s):\n{description}\n\n"
+        "Please wait while the seller sends the gift."
+    ),
+
+    "payment_confirmed_seller_message": (
+        "✅ Payment confirmed for deal #{deal_id}\n\n"
+        "You now need to send the NFT gift(s) to the support account @astral_helper.\n\n"
+        "After you fully send all gifts to support, press the “I have sent it” button under this message."
+    ),
+
+    "seller_notification_message": (
+        "User @{buyer_username} has joined the deal #{deal_id}\n"
+        "• Successful deals: {successful_deals}\n\n"
+        "⚠️ Make sure this is the same user you were talking to earlier!"
+    ),
+
+    "insufficient_balance_message": "❌ Insufficient balance!",
+
+    "wallet_updated_message": "💼 Your wallet has been updated: {wallet}",
+
+    "admin_panel_message": "Admin panel:",
+    "admin_view_deals_message": "Active deals:\n{deals_list}",
+    "admin_change_balance_message": "Enter user ID and new balance in the format: user_id balance",
+    "admin_change_successful_deals_message": "Enter user ID and number of successful deals in the format: user_id count",
+    "admin_change_valute_message": "Enter new currency (e.g., USD, EUR, RUB):",
+
+    "menu_button": "🔙Back to menu",
+    "pay_from_balance_button": "✅ Confirm payment",
+    "add_wallet_button": "🪙Add/change wallet",
+    "create_deal_button": "📄Create deal",
+    "profile_button": "👤Profile",
+    "referral_button": "🧷Referral link",
+    "change_lang_button": "🌐Change language",
+    "support_button": "📞Support",
+    "english_lang_button": "English",
+    "russian_lang_button": "Русский",
+
+    "admin_view_deals_button": "View deals",
+    "admin_change_balance_button": "Change user balance",
+    "admin_change_successful_deals_button": "Change successful deals",
+    "admin_change_valute_button": "Change currency",
+
+    "deal_info_message": (
+        "📄 Deal information #{deal_id}\n\n"
+        "You are the buyer in this deal.\n"
+        "Seller: @{seller_username}\n"
+        "Successful deals: {successful_deals}\n\n"
+        "Deal amount: {amount} {valute}\n\n"
+        "You are buying:\n"
+        "{description}\n\n"
+        "Payment address:\n"
+        "{wallet}\n\n"
+        "Payment comment (memo): {deal_id}\n\n"
+        "⚠️ Please ensure the data is correct before payment.\n"
+        "The comment (memo) is mandatory!\n\n"
+        "After payment, wait for automatic confirmation."
+    ),
+
+    "awaiting_description_message": (
+        "🔗 Send the link or links to the NFT gift(s) you are selling in this deal:\n\n"
+        "Example: https://t.me/nft/Example-1"
+    ),
+
+    "profile_message": (
+        "👤 Astral profile\n\n"
+        "ID: {user_id}\n"
+        "Username: @{username}\n"
+        "Successful deals: {successful_deals}\n"
+        "Balance: {balance} {valute}\n"
+        "Current wallet: {wallet}\n\n"
+        "Sold NFTs:\n{sold_summary}"
+    ),
 }
 
-# Функция получения текста
+# Функция для получения текста на выбранном языке
 def get_text(lang, key, **kwargs):
     if lang == "ru":
         return RU_TEXTS.get(key, "").format(**kwargs)
