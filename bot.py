@@ -612,7 +612,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start(update, context)
             return
 
-                # профиль
+        # профиль
         if data == "profile":
             usr = user_data.get(user_id, {})
             username = query.from_user.username or "None"
@@ -628,9 +628,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 wallet=usr.get("wallet", "Не указан"),
                 sold_summary=sold_summary,
             )
-            # отправляем отдельным сообщением, чтобы не редактировать фото
-            await context.bot.send_message(
-                chat_id,
+            await query.edit_message_text(
                 text,
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
