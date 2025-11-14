@@ -603,7 +603,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Ошибка отправки сообщения продавцу: {e}")
             return
 
-                if data.startswith("lang_"):
+
+        
+        # смена языка
+        if data.startswith("lang_"):
             new_lang = data.split("_")[-1]
             user_data[user_id]["lang"] = new_lang
             save_user_data(user_id)
@@ -639,7 +642,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
 
-            # ВАЖНО: отправляем новое сообщение, НЕ редактируем фото
+# удалено дублирование профиля ниже (fix), НЕ редактируем фото
             await context.bot.send_message(
                 chat_id,
                 text,
