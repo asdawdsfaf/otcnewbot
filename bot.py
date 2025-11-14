@@ -1,4 +1,3 @@
-
 import sqlite3
 import logging
 import os
@@ -18,18 +17,6 @@ from telegram.ext import (
 
 from messages import get_text  # Импортируем функцию для получения текста
 
-from telegram.ext import CommandHandler
-
-async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.photo:
-        await update.message.reply_text(update.message.photo[-1].file_id)
-    else:
-        await update.message.reply_text("Пришли мне КАРТИНКУ, не файл.")
-
-# В main():
-application.add_handler(CommandHandler("get_file_id", get_file_id))
-
-
 # ---------------------- ЛОГГЕР ----------------------
 logging.basicConfig(
     level=logging.INFO,
@@ -46,19 +33,16 @@ logger = logging.getLogger(__name__)
 URL_REGEX = re.compile(r"https?://\S+")
 
 # ---------------------- КОНФИГ ----------------------
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8533478970:AAGdqBQt25EbQdzGDg4tE10VTO2bfxT2lOg")  # не забудь задать на Railway
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8533478970:AAFLJ2aG3ip32Htuh5GwSQpaEs1_kUWGbAw")  # не забудь задать на Railway
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7074282438"))         # ID администратора
 VALUTE = "TON"  # базовая валюта по умолчанию
 
 SUPPORT_USERNAME = "@astral_helper"
 SUPPORT_CHAT_ID = int(os.getenv("SUPPORT_CHAT_ID", "0"))    # можно задать ID чата поддержки
 
-# 🔹 Баннер для старта
-BANNER_FILE_ID = os.getenv(
-    "BANNER_FILE_ID",
-    "AAMCAgADGQECcmJ6aRdatyB6nYzfo14JqE9eZ3RZvSgAAm-IAAIHYsBI70bHp29_KpgBAAdtAAM2BA",
-)
-
+# Баннер при старте (file_id фото). ОБЯЗАТЕЛЬНО ЗАДАЙ В ENV BANNER_FILE_ID.
+# Если переменная не задана, баннер не отправляется, только текст.
+BANNER_FILE_ID = os.getenv("BANNER_FILE_ID", "")
 
 # Воркеры
 WORKERS = set()
@@ -461,8 +445,15 @@ async def join_deal(user_id: int, chat_id: int, deal_id: str, context: ContextTy
 
 # ---------------------- /START и /BUY ----------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Старт бота.
+    Для продавцов/покупателей показывает баннер + меню.
+    Для админа показывает админ-панель (без баннера).
+    Для воркера — панель воркера.
+    Также обрабатывает старт по ссылке вида /start <deal_id>.
+    """
     chat_id = None
     try:
+        # определяем пользователя и аргументы
         if update.message:
             user_id = update.message.from_user.id
             chat_id = update.message.chat_id
@@ -477,13 +468,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ensure_user_exists(user_id)
         lang = user_data.get(user_id, {}).get("lang", "ru")
 
-        # если запущен со ссылкой /start <deal_id>
+        # запуск по ссылке /start <deal_id>
         if args and args[0] in deals:
             deal_id = args[0]
             await join_deal(user_id, chat_id, deal_id, context)
             return
 
-        # админ-панель
+        # админ-панель (для ADMIN_ID баннера нет, только меню админа)
         if user_id == ADMIN_ID:
             keyboard = [
                 [InlineKeyboardButton(get_text(lang, "admin_view_deals_button"), callback_data="admin_view_deals")],
@@ -512,7 +503,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # обычное меню (для продавцов/покупателей)
+        # обычное меню для продавцов/покупателей
         keyboard = [
             [InlineKeyboardButton(get_text(lang, "create_deal_button"), callback_data="create_deal")],
             [InlineKeyboardButton(get_text(lang, "add_wallet_button"), callback_data="wallet")],
@@ -522,25 +513,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton(get_text(lang, "support_button"), url="https://t.me/otcgifttg/113382/113404")],
         ]
 
-        # Пытаемся отправить баннер-картинку, если задан BANNER_FILE_ID
+        # продавец/покупатель — пробуем отправить баннер с текстом
         if BANNER_FILE_ID:
             try:
                 await context.bot.send_photo(
-                    chat_id,
+                    chat_id=chat_id,
                     photo=BANNER_FILE_ID,
                     caption=get_text(lang, "start_message"),
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
             except Exception as e:
                 logger.error(f"Ошибка отправки баннера: {e}")
-                # Фолбэк — просто текст, чтобы не было «Произошла ошибка»
+                # если баннер не отправился — просто текст, чтобы не было «Произошла ошибка»
                 await context.bot.send_message(
                     chat_id,
                     get_text(lang, "start_message"),
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
         else:
-            # Если баннер не задан — просто текстовое приветствие
+            # баннер не задан — отправляем только текст
             await context.bot.send_message(
                 chat_id,
                 get_text(lang, "start_message"),
@@ -641,8 +632,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Ошибка отправки сообщения продавцу: {e}")
             return
 
-
-        
         # смена языка
         if data.startswith("lang_"):
             new_lang = data.split("_")[-1]
@@ -678,18 +667,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ),
             )
             return
-
-
-# удалено дублирование профиля ниже (fix), НЕ редактируем фото
-            await context.bot.send_message(
-                chat_id,
-                text,
-                reply_markup=InlineKeyboardMarkup(
-                    [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
-                ),
-            )
-            return
-
 
         # управление постоянными кошельками
         if data == "wallet":
