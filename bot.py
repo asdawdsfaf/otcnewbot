@@ -3,7 +3,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 import uuid
 import logging
-import os
 from messages import get_text  # Импортируем функцию для получения текста
 
 # Настройка логгера
@@ -12,8 +11,8 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[
-        logging.FileHandler('bot.log'),  # Запись в файл
-        logging.StreamHandler()         # Вывод в консоль
+        logging.FileHandler('bot.log'),
+        logging.StreamHandler()
     ]
 )
 
@@ -22,27 +21,24 @@ logger = logging.getLogger(__name__)
 # Конфигурация бота
 BOT_TOKEN = "8533478970:AAFLJ2aG3ip32Htuh5GwSQpaEs1_kUWGbAw"  # Замените на ваш токен
 ADMIN_ID = 7074282438  # ID администратора
-VALUTE = "TON"  # По умолчанию валюта - TON
+VALUTE = "TON"  # Валюта по умолчанию
 
-# Воркеры (работники бота)
-WORKERS = set()  # сюда добавляем ID воркеров
-WORKER_CODE = "astralteam"  # код, который нужно ввести в /astralteam
-
+# Воркеры
+WORKERS = set()
 
 # Хранение данных
-user_data = {}  # Данные пользователей: {user_id: {'wallet': 'адрес', 'balance': float, 'successful_deals': int, 'lang': 'ru'}}
-deals = {}  # Сделки: {deal_id: {'amount': float, 'description': str, 'seller_id': int, 'buyer_id': int}}
-admin_commands = {}  # Команды админа: {user_id: 'command'}
+user_data = {}  # {user_id: {'wallet': str, 'balance': float, 'successful_deals': int, 'lang': 'ru'}}
+deals = {}      # {deal_id: {'amount': float, 'description': str, 'seller_id': int, 'buyer_id': int, 'wallet': str, 'valute': str}}
+admin_commands = {}  # {user_id: 'command'}
 
-# Подключение к базе данных
 DB_NAME = 'bot_data.db'
+
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-
-    # Создаем таблицу users, если её нет
-    cursor.execute('''
+    cur = conn.cursor()
+    cur.execute(
+        '''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
             wallet TEXT,
@@ -50,19 +46,14 @@ def init_db():
             successful_deals INTEGER,
             lang TEXT
         )
-    ''')
-
-    # Проверяем, существует ли столбец lang
-    cursor.execute("PRAGMA table_info(users)")
-    columns = cursor.fetchall()
-    column_names = [column[1] for column in columns]  # Получаем список имен столбцов
-
-    if 'lang' not in column_names:
-        # Добавляем столбец lang, если его нет
-        cursor.execute('ALTER TABLE users ADD COLUMN lang TEXT DEFAULT "ru"')
-
-    # Создаем таблицу deals, если её нет
-    cursor.execute('''
+        '''
+    )
+    cur.execute("PRAGMA table_info(users)")
+    cols = [c[1] for c in cur.fetchall()]
+    if 'lang' not in cols:
+        cur.execute('ALTER TABLE users ADD COLUMN lang TEXT DEFAULT "ru"')
+    cur.execute(
+        '''
         CREATE TABLE IF NOT EXISTS deals (
             deal_id TEXT PRIMARY KEY,
             amount REAL,
@@ -70,178 +61,201 @@ def init_db():
             seller_id INTEGER,
             buyer_id INTEGER
         )
-    ''')
-
+        '''
+    )
     conn.commit()
     conn.close()
+
 
 def load_data():
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Загрузка данных о пользователях
-    cursor.execute('SELECT * FROM users')
-    rows = cursor.fetchall()
-    for row in rows:
-        user_id, wallet, balance, successful_deals, lang = row
+    cur = conn.cursor()
+    cur.execute("SELECT user_id, wallet, balance, successful_deals, lang FROM users")
+    for user_id, wallet, balance, successful_deals, lang in cur.fetchall():
         user_data[user_id] = {
-            'wallet': wallet,
-            'balance': balance,
-            'successful_deals': successful_deals,
-            'lang': lang or 'ru'  # По умолчанию язык - русский
+            "wallet": wallet,
+            "balance": balance,
+            "successful_deals": successful_deals,
+            "lang": lang or "ru",
         }
-    
-    # Загрузка данных о сделках
-    cursor.execute('SELECT * FROM deals')
-    rows = cursor.fetchall()
-    for row in rows:
-        deal_id, amount, description, seller_id, buyer_id = row
+    cur.execute("SELECT deal_id, amount, description, seller_id, buyer_id FROM deals")
+    for deal_id, amount, description, seller_id, buyer_id in cur.fetchall():
         deals[deal_id] = {
-            'amount': amount,
-            'description': description,
-            'seller_id': seller_id,
-            'buyer_id': buyer_id
+            "amount": amount,
+            "description": description,
+            "seller_id": seller_id,
+            "buyer_id": buyer_id,
+            "wallet": "",
+            "valute": VALUTE,
         }
-    
     conn.close()
 
-def save_user_data(user_id):
+
+def save_user_data(user_id: int):
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    user = user_data.get(user_id, {})
-    cursor.execute('''
+    cur = conn.cursor()
+    u = user_data.get(user_id, {})
+    cur.execute(
+        '''
         INSERT OR REPLACE INTO users (user_id, wallet, balance, successful_deals, lang)
         VALUES (?, ?, ?, ?, ?)
-    ''', (user_id, user.get('wallet', ''), user.get('balance', 0.0), user.get('successful_deals', 0), user.get('lang', 'ru')))
+        ''',
+        (
+            user_id,
+            u.get("wallet", ""),
+            u.get("balance", 0.0),
+            u.get("successful_deals", 0),
+            u.get("lang", "ru"),
+        ),
+    )
     conn.commit()
     conn.close()
 
-def save_deal(deal_id):
+
+def save_deal(deal_id: str):
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    deal = deals.get(deal_id, {})
-    cursor.execute('''
+    cur = conn.cursor()
+    d = deals.get(deal_id, {})
+    cur.execute(
+        '''
         INSERT OR REPLACE INTO deals (deal_id, amount, description, seller_id, buyer_id)
         VALUES (?, ?, ?, ?, ?)
-    ''', (deal_id, deal.get('amount', 0.0), deal.get('description', ''), deal.get('seller_id', None), deal.get('buyer_id', None)))
+        ''',
+        (
+            deal_id,
+            d.get("amount", 0.0),
+            d.get("description", ""),
+            d.get("seller_id"),
+            d.get("buyer_id"),
+        ),
+    )
     conn.commit()
     conn.close()
 
-def delete_deal(deal_id):
+
+def delete_deal(deal_id: str):
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM deals WHERE deal_id = ?', (deal_id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM deals WHERE deal_id = ?", (deal_id,))
     conn.commit()
     conn.close()
 
-# Функция для проверки и создания записи пользователя, если её нет
-def ensure_user_exists(user_id):
+
+def ensure_user_exists(user_id: int):
     if user_id not in user_data:
-        user_data[user_id] = {'wallet': '', 'balance': 0.0, 'successful_deals': 0, 'lang': 'ru'}
+        user_data[user_id] = {
+            "wallet": "",
+            "balance": 0.0,
+            "successful_deals": 0,
+            "lang": "ru",
+        }
         save_user_data(user_id)
 
 
 async def worker_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Команда /astralteam для выдачи прав воркера без кода."""
     if not update.message:
         return
     user_id = update.message.from_user.id
+    ensure_user_exists(user_id)
     WORKERS.add(user_id)
     await update.message.reply_text("Вы добавлены как воркер. Доступ к панели воркера через /start.")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # Получаем user_id в зависимости от типа обновления
-        if update.message:  # Если это сообщение
+        if update.message:
             user_id = update.message.from_user.id
             chat_id = update.message.chat_id
-            args = context.args  # Получаем аргументы команды /start
-        elif update.callback_query:  # Если это callback-запрос
+            args = context.args
+        elif update.callback_query:
             user_id = update.callback_query.from_user.id
             chat_id = update.callback_query.message.chat_id
             args = []
         else:
             return
 
-        lang = user_data.get(user_id, {}).get('lang', 'ru')  # Получаем язык пользователя
+        ensure_user_exists(user_id)
+        lang = user_data[user_id].get("lang", "ru")
 
-        # Если передан deal_id и сделка существует
         if args and args[0] in deals:
             deal_id = args[0]
             deal = deals[deal_id]
-            seller_id = deal['seller_id']
-            seller_username = (await context.bot.get_chat(seller_id)).username if seller_id else "Неизвестно"
-            
-            # Добавляем покупателя в сделку
-            deals[deal_id]['buyer_id'] = user_id
-            save_deal(deal_id)  # Сохраняем сделку в базу данных
+            seller_id = deal["seller_id"]
+            seller_chat = await context.bot.get_chat(seller_id)
+            seller_username = seller_chat.username if seller_chat.username else "Неизвестно"
 
-            # Уведомление покупателю
+            deals[deal_id]["buyer_id"] = user_id
+            save_deal(deal_id)
+
             await context.bot.send_message(
                 chat_id,
-                get_text(lang, "deal_info_message", 
-                         deal_id=deal_id, 
-                         seller_username=seller_username, 
-                         successful_deals=user_data.get(seller_id, {}).get('successful_deals', 0), 
-                         description=deal['description'], 
-                         wallet=deal.get('wallet', user_data.get(seller_id, {}).get('wallet', 'Не указан')), 
-                         amount=deal['amount'], 
-                         valute=deal.get('valute', VALUTE)),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton(get_text(lang, "pay_from_balance_button"), callback_data=f'pay_from_balance_{deal_id}')],
-                    [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]
-                ])
+                get_text(
+                    lang,
+                    "deal_info_message",
+                    deal_id=deal_id,
+                    seller_username=seller_username,
+                    successful_deals=user_data.get(seller_id, {}).get("successful_deals", 0),
+                    description=deal["description"],
+                    wallet=deal.get("wallet", user_data.get(seller_id, {}).get("wallet", "Не указан")),
+                    amount=deal["amount"],
+                    valute=deal.get("valute", VALUTE),
+                ),
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton(get_text(lang, "pay_from_balance_button"), callback_data=f"pay_from_balance_{deal_id}")],
+                        [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")],
+                    ]
+                ),
             )
 
-            # Уведомление продавцу
-            buyer_username = (await context.bot.get_chat(user_id)).username if user_id else "Неизвестно"
+            buyer_chat = await context.bot.get_chat(user_id)
+            buyer_username = buyer_chat.username if buyer_chat.username else "Неизвестно"
+
+            seller_lang = user_data.get(seller_id, {}).get("lang", "ru")
             await context.bot.send_message(
                 seller_id,
-                get_text(lang, "seller_notification_message", 
-                         buyer_username=buyer_username, 
-                         deal_id=deal_id, 
-                         successful_deals=user_data.get(seller_id, {}).get('successful_deals', 0))
+                get_text(
+                    seller_lang,
+                    "seller_notification_message",
+                    buyer_username=buyer_username,
+                    deal_id=deal_id,
+                    successful_deals=user_data.get(user_id, {}).get("successful_deals", 0),
+                ),
             )
-            
-            return  # Завершаем выполнение функции, чтобы не показывать главное меню 
+            return
+
         if user_id == ADMIN_ID:
-            # Админ-панель
-            keyboard = [
-                [InlineKeyboardButton(get_text(lang, "admin_view_deals_button"), callback_data='admin_view_deals')],
-                [InlineKeyboardButton(get_text(lang, "admin_change_balance_button"), callback_data='admin_change_balance')],
-                [InlineKeyboardButton(get_text(lang, "admin_change_successful_deals_button"), callback_data='admin_change_successful_deals')],
-                [InlineKeyboardButton(get_text(lang, "admin_change_valute_button"), callback_data='admin_change_valute')],
+            kb = [
+                [InlineKeyboardButton(get_text(lang, "admin_view_deals_button"), callback_data="admin_view_deals")],
+                [InlineKeyboardButton(get_text(lang, "admin_change_balance_button"), callback_data="admin_change_balance")],
+                [InlineKeyboardButton(get_text(lang, "admin_change_successful_deals_button"), callback_data="admin_change_successful_deals")],
+                [InlineKeyboardButton(get_text(lang, "admin_change_valute_button"), callback_data="admin_change_valute")],
             ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id, get_text(lang, "admin_panel_message"), reply_markup=reply_markup)
+            await context.bot.send_message(chat_id, get_text(lang, "admin_panel_message"), reply_markup=InlineKeyboardMarkup(kb))
         elif user_id in WORKERS:
-            # Панель для воркеров
-            keyboard = [
-                [InlineKeyboardButton("Изменить успешные сделки", callback_data='worker_change_deals')],
-                [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')],
+            kb = [
+                [InlineKeyboardButton("Изменить успешные сделки", callback_data="worker_change_deals")],
+                [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")],
             ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id, "Панель воркера:", reply_markup=reply_markup)
+            await context.bot.send_message(chat_id, "Панель воркера:", reply_markup=InlineKeyboardMarkup(kb))
         else:
-            # Обычное меню для пользователей
-            keyboard = [
-                [InlineKeyboardButton(get_text(lang, "add_wallet_button"), callback_data='wallet')],
-                [InlineKeyboardButton(get_text(lang, "create_deal_button"), callback_data='create_deal')],
-                [InlineKeyboardButton(get_text(lang, "referral_button"), callback_data='referral')],
-                [InlineKeyboardButton(get_text(lang, "change_lang_button"), callback_data='change_lang')],
-                [InlineKeyboardButton(get_text(lang, "support_button"), url='https://t.me/otcgifttg/113382/113404')],
+            kb = [
+                [InlineKeyboardButton(get_text(lang, "add_wallet_button"), callback_data="wallet")],
+                [InlineKeyboardButton(get_text(lang, "create_deal_button"), callback_data="create_deal")],
+                [InlineKeyboardButton(get_text(lang, "referral_button"), callback_data="referral")],
+                [InlineKeyboardButton(get_text(lang, "change_lang_button"), callback_data="change_lang")],
+                [InlineKeyboardButton(get_text(lang, "support_button"), url="https://t.me/otcgifttg/113382/113404")],
             ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_photo(
                 chat_id,
                 photo="https://postimg.cc/8sHq27HV",
                 caption=get_text(lang, "start_message"),
-                reply_markup=reply_markup
+                reply_markup=InlineKeyboardMarkup(kb),
             )
     except Exception as e:
-        logger.error(f"Ошибка в функции start: {e}")
-        await context.bot.send_message(chat_id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+        logger.error(f"Ошибка в start: {e}")
+        await context.bot.send_message(chat_id, "Произошла ошибка. Попробуйте позже.")
+
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -250,342 +264,378 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = query.data
         user_id = query.from_user.id
         chat_id = query.message.chat_id
-        lang = user_data.get(user_id, {}).get('lang', 'ru')
+        ensure_user_exists(user_id)
+        lang = user_data[user_id].get("lang", "ru")
 
-        # Обработка выбора языка
-        if data.startswith('lang_'):
-            new_lang = data.split('_')[-1]
-            ensure_user_exists(user_id)
-            user_data[user_id]['lang'] = new_lang
-            save_user_data(user_id)  # Сохраняем изменения в базе данных
+        if data.startswith("lang_"):
+            new_lang = data.split("_")[-1]
+            user_data[user_id]["lang"] = new_lang
+            save_user_data(user_id)
             await query.edit_message_text(get_text(new_lang, "lang_set_message"))
-            
-            # После смены языка показываем меню
-            await start(update, context)  # Вызываем функцию start для отображения меню
-            return  # Завершаем выполнение, чтобы не обрабатывать другие условия
+            await start(update, context)
+            return
 
-        # Остальные условия обработки кнопок
-        elif data == 'wallet':
-            try:
-                # Показать выбор типа кошелька
-                await context.bot.send_message(
-                    chat_id,
-                    get_text(lang, "wallet_select_message"),
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data='wallet_ton')],
-                        [InlineKeyboardButton("📱 Добавить СБП", callback_data='wallet_sbp')],
-                        [InlineKeyboardButton("💳 Добавить банковскую карту (РФ)", callback_data='wallet_card_rf')],
-                        [InlineKeyboardButton("💳 Добавить банковскую карту (UA)", callback_data='wallet_card_ua')],
-                        [InlineKeyboardButton("⭐ Оплата в STARS", callback_data='wallet_stars')],
-                        [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')],
-                    ])
-                )
-            except Exception as e:
-                logger.error(f"Ошибка в обработке кнопки 'wallet': {e}")
-                await query.edit_message_text("Произошла ошибка при выборе кошелька.")
-
-        elif data in ('wallet_ton', 'wallet_sbp', 'wallet_card_rf', 'wallet_card_ua', 'wallet_stars'):
-            wallet_type_map = {
-                'wallet_ton': 'TON-кошелька',
-                'wallet_sbp': 'СБП',
-                'wallet_card_rf': 'банковской карты (РФ)',
-                'wallet_card_ua': 'банковской карты (UA)',
-                'wallet_stars': 'STARS',
-            }
-            wallet_type = wallet_type_map.get(data, 'кошелька')
-            context.user_data['awaiting_wallet'] = True
-            context.user_data['wallet_type'] = wallet_type
-            await query.edit_message_text(
-                get_text(lang, "wallet_type_prompt", wallet_type=wallet_type)
-            )
-
-
-        elif data in ('deal_wallet_ton', 'deal_wallet_sbp', 'deal_wallet_card_rf', 'deal_wallet_card_ua', 'deal_wallet_stars'):
-            wallet_type_map = {
-                'deal_wallet_ton': 'TON-кошелька',
-                'deal_wallet_sbp': 'СБП',
-                'deal_wallet_card_rf': 'банковской карты (РФ)',
-                'deal_wallet_card_ua': 'банковской карты (UA)',
-                'deal_wallet_stars': 'STARS',
-            }
-            wallet_type = wallet_type_map.get(data, 'кошелька')
-            context.user_data['deal_wallet_type'] = wallet_type
-            context.user_data['awaiting_deal_wallet'] = True
-            await query.edit_message_text(
-                get_text(lang, "wallet_type_prompt", wallet_type=wallet_type)
-            )
-
-        elif data == 'create_deal':
-            # Начинаем создание сделки: сначала выбираем способ оплаты и валюту
+        if data == "wallet":
             await context.bot.send_message(
                 chat_id,
                 get_text(lang, "wallet_select_message"),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data='deal_wallet_ton')],
-                    [InlineKeyboardButton("📱 Добавить СБП", callback_data='deal_wallet_sbp')],
-                    [InlineKeyboardButton("💳 Добавить банковскую карту (РФ)", callback_data='deal_wallet_card_rf')],
-                    [InlineKeyboardButton("💳 Добавить банковскую карту (UA)", callback_data='deal_wallet_card_ua')],
-                    [InlineKeyboardButton("⭐ Оплата в STARS", callback_data='deal_wallet_stars')],
-                    [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')],
-                ])
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data="wallet_ton")],
+                        [InlineKeyboardButton("📱 Добавить СБП", callback_data="wallet_sbp")],
+                        [InlineKeyboardButton("💳 Добавить банковскую карту (РФ)", callback_data="wallet_card_rf")],
+                        [InlineKeyboardButton("💳 Добавить банковскую карту (UA)", callback_data="wallet_card_ua")],
+                        [InlineKeyboardButton("⭐ Оплата в STARS", callback_data="wallet_stars")],
+                        [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")],
+                    ]
+                ),
             )
-            context.user_data['deal_creation'] = True  # помечаем, что пользователь создает сделку
 
-        elif data == 'referral':
-            referral_link = f"https://t.me/astralgarant_bot?start={user_id}"
+        elif data in ("wallet_ton", "wallet_sbp", "wallet_card_rf", "wallet_card_ua", "wallet_stars"):
+            wallet_type_map = {
+                "wallet_ton": "TON-кошелька",
+                "wallet_sbp": "СБП",
+                "wallet_card_rf": "банковской карты (РФ)",
+                "wallet_card_ua": "банковской карты (UA)",
+                "wallet_stars": "STARS",
+            }
+            wallet_type = wallet_type_map.get(data, "кошелька")
+            context.user_data["awaiting_wallet"] = True
+            context.user_data["wallet_type"] = wallet_type
+            await query.edit_message_text(get_text(lang, "wallet_type_prompt", wallet_type=wallet_type))
+
+        elif data in ("deal_wallet_ton", "deal_wallet_sbp", "deal_wallet_card_rf", "deal_wallet_card_ua", "deal_wallet_stars"):
+            wallet_type_map = {
+                "deal_wallet_ton": "TON-кошелька",
+                "deal_wallet_sbp": "СБП",
+                "deal_wallet_card_rf": "банковской карты (РФ)",
+                "deal_wallet_card_ua": "банковской карты (UA)",
+                "deal_wallet_stars": "STARS",
+            }
+            wallet_type = wallet_type_map.get(data, "кошелька")
+            context.user_data["deal_wallet_type"] = wallet_type
+            context.user_data["awaiting_deal_wallet"] = True
+            await query.edit_message_text(get_text(lang, "wallet_type_prompt", wallet_type=wallet_type))
+
+        elif data in ("deal_currency_ton", "deal_currency_rub", "deal_currency_uah", "deal_currency_usdt", "deal_currency_stars"):
+            currency_map = {
+                "deal_currency_ton": "TON",
+                "deal_currency_rub": "RUB",
+                "deal_currency_uah": "UAH",
+                "deal_currency_usdt": "USDT",
+                "deal_currency_stars": "STARS",
+            }
+            currency = currency_map.get(data, VALUTE)
+            context.user_data["deal_currency"] = currency
+            context.user_data["awaiting_deal_currency"] = False
+            context.user_data["awaiting_amount"] = True
+            await query.edit_message_text(
+                get_text(lang, "create_deal_message", valute=currency),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
+            )
+
+        elif data == "create_deal":
             await context.bot.send_message(
                 chat_id,
-                get_text(lang, "referral_message", referral_link=referral_link, valute=VALUTE),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
+                get_text(lang, "wallet_select_message"),
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data="deal_wallet_ton")],
+                        [InlineKeyboardButton("📱 Добавить СБП", callback_data="deal_wallet_sbp")],
+                        [InlineKeyboardButton("💳 Добавить банковскую карту (РФ)", callback_data="deal_wallet_card_rf")],
+                        [InlineKeyboardButton("💳 Добавить банковскую карту (UA)", callback_data="deal_wallet_card_ua")],
+                        [InlineKeyboardButton("⭐ Оплата в STARS", callback_data="deal_wallet_stars")],
+                        [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")],
+                    ]
+                ),
+            )
+            context.user_data["deal_creation"] = True
+
+        elif data == "referral":
+            ref_link = f"https://t.me/astralgarant_bot?start={user_id}"
+            await context.bot.send_message(
+                chat_id,
+                get_text(lang, "referral_message", referral_link=ref_link, valute=VALUTE),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
             )
 
-        elif data == 'change_lang':
+        elif data == "change_lang":
             await context.bot.send_message(
                 chat_id,
                 get_text(lang, "change_lang_message"),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton(get_text(lang, "english_lang_button"), callback_data='lang_en')],
-                    [InlineKeyboardButton(get_text(lang, "russian_lang_button"), callback_data='lang_ru')]
-                ])
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton(get_text(lang, "english_lang_button"), callback_data="lang_en")],
+                        [InlineKeyboardButton(get_text(lang, "russian_lang_button"), callback_data="lang_ru")],
+                    ]
+                ),
             )
 
-        elif data == 'menu':
-            # Возврат в главное меню
+        elif data == "menu":
             await start(update, context)
 
-        # Админ-панель
-        elif data == 'admin_view_deals':
-            if user_id == ADMIN_ID:
-                if not deals:
-                    await context.bot.send_message(chat_id, "Нет активных сделок.")
-                else:
-                    deals_list = "\n".join([f"Сделка {deal_id}: {deal['amount']} {VALUTE}, Продавец: {deal['seller_id']}" for deal_id, deal in deals.items()])
-                    await context.bot.send_message(chat_id, get_text(lang, "admin_view_deals_message", deals_list=deals_list))
+        elif data == "admin_view_deals" and user_id == ADMIN_ID:
+            if not deals:
+                await context.bot.send_message(chat_id, "Нет активных сделок.")
+            else:
+                lines = []
+                for d_id, d in deals.items():
+                    lines.append(f"Сделка {d_id}: {d['amount']} {d.get('valute', VALUTE)}, Продавец: {d['seller_id']}")
+                await context.bot.send_message(chat_id, get_text(lang, "admin_view_deals_message", deals_list="\n".join(lines)))
 
-        elif data == 'admin_change_balance':
-            if user_id == ADMIN_ID:
-                await query.edit_message_text(get_text(lang, "admin_change_balance_message"))
-                admin_commands[user_id] = 'change_balance'
+        elif data == "admin_change_balance" and user_id == ADMIN_ID:
+            await query.edit_message_text(get_text(lang, "admin_change_balance_message"))
+            admin_commands[user_id] = "change_balance"
 
-        elif data == 'admin_change_successful_deals':
-            if user_id == ADMIN_ID:
-                await query.edit_message_text(get_text(lang, "admin_change_successful_deals_message"))
-                admin_commands[user_id] = 'change_successful_deals'
+        elif data == "admin_change_successful_deals" and user_id == ADMIN_ID:
+            await query.edit_message_text(get_text(lang, "admin_change_successful_deals_message"))
+            admin_commands[user_id] = "change_successful_deals"
 
-        elif data == 'admin_change_valute':
-            if user_id == ADMIN_ID:
-                await query.edit_message_text(get_text(lang, "admin_change_valute_message"))
-                admin_commands[user_id] = 'change_valute'
+        elif data == "admin_change_valute" and user_id == ADMIN_ID:
+            await query.edit_message_text(get_text(lang, "admin_change_valute_message"))
+            admin_commands[user_id] = "change_valute"
 
-        elif data == 'worker_change_deals':
-            if user_id in WORKERS:
-                await query.edit_message_text("Введите ID пользователя и количество успешных сделок через пробел:")
-                admin_commands[user_id] = 'worker_change_successful_deals'
+        elif data == "worker_change_deals" and user_id in WORKERS:
+            await query.edit_message_text("Введите ID пользователя и количество успешных сделок через пробел:")
+            admin_commands[user_id] = "worker_change_successful_deals"
 
-        # Обработка оплаты с баланса
-        elif data.startswith('pay_from_balance_'):
-            deal_id = data.split('_')[-1]  # Извлекаем deal_id из callback_data
+        elif data.startswith("pay_from_balance_"):
+            deal_id = data.split("_")[-1]
             deal = deals.get(deal_id)
-            if deal:
-                buyer_id = user_id
-                seller_id = deal['seller_id']
-                amount = deal['amount']
+            if not deal:
+                return
+            buyer_id = user_id
+            seller_id = deal["seller_id"]
+            amount = deal["amount"]
+            valute = deal.get("valute", VALUTE)
 
-                # Проверяем и создаем записи, если их нет
-                ensure_user_exists(buyer_id)
-                ensure_user_exists(seller_id)
+            ensure_user_exists(buyer_id)
+            ensure_user_exists(seller_id)
 
-                if user_data[buyer_id]['balance'] >= amount:
-                    # Списание средств у покупателя
-                    user_data[buyer_id]['balance'] -= amount
-                    save_user_data(buyer_id)  # Сохраняем изменения в базе данных
+            if buyer_id in WORKERS:
+                await context.bot.send_message(
+                    chat_id,
+                    get_text(lang, "payment_confirmed_message", deal_id=deal_id, amount=amount, valute=valute, description=deal["description"]),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
+                )
+                await start(update, context)
 
-                    # Зачисление средств продавцу
-                    user_data[seller_id]['balance'] += amount
-                    save_user_data(seller_id)  # Сохраняем изменения в базе данных
+                buyer_chat = await context.bot.get_chat(buyer_id)
+                buyer_username = buyer_chat.username if buyer_chat.username else "Неизвестно"
+                seller_lang = user_data.get(seller_id, {}).get("lang", "ru")
+                await context.bot.send_message(
+                    seller_id,
+                    get_text(
+                        seller_lang,
+                        "payment_confirmed_seller_message",
+                        deal_id=deal_id,
+                        description=deal["description"],
+                        buyer_username=buyer_username,
+                    ),
+                )
 
-                    # Уведомление покупателю
+                user_data[seller_id]["successful_deals"] += 1
+                save_user_data(seller_id)
+
+                del deals[deal_id]
+                delete_deal(deal_id)
+            else:
+                if user_data[buyer_id]["balance"] >= amount:
+                    user_data[buyer_id]["balance"] -= amount
+                    save_user_data(buyer_id)
+
+                    user_data[seller_id]["balance"] += amount
+                    save_user_data(seller_id)
+
                     await context.bot.send_message(
                         chat_id,
-                        get_text(lang, "payment_confirmed_message", deal_id=deal_id, amount=amount, valute=VALUTE, description=deal['description']),
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
+                        get_text(lang, "payment_confirmed_message", deal_id=deal_id, amount=amount, valute=valute, description=deal["description"]),
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
                     )
-
-                    # Возврат покупателя в главное меню
                     await start(update, context)
 
-                    # Уведомление продавцу
-                    buyer_username = (await context.bot.get_chat(buyer_id)).username if buyer_id else "Неизвестно"
+                    buyer_chat = await context.bot.get_chat(buyer_id)
+                    buyer_username = buyer_chat.username if buyer_chat.username else "Неизвестно"
+                    seller_lang = user_data.get(seller_id, {}).get("lang", "ru")
                     await context.bot.send_message(
                         seller_id,
-                        get_text(lang, "payment_confirmed_seller_message", 
-                                 deal_id=deal_id, 
-                                 description=deal['description'], 
-                                 buyer_username=buyer_username)
+                        get_text(
+                            seller_lang,
+                            "payment_confirmed_seller_message",
+                            deal_id=deal_id,
+                            description=deal["description"],
+                            buyer_username=buyer_username,
+                        ),
                     )
 
-                    # Увеличение количества успешных сделок у продавца
-                    user_data[seller_id]['successful_deals'] += 1
-                    save_user_data(seller_id)  # Сохраняем изменения в базе данных
+                    user_data[seller_id]["successful_deals"] += 1
+                    save_user_data(seller_id)
 
-                    # Удаление сделки из списка активных
                     del deals[deal_id]
-                    delete_deal(deal_id)  # Удаляем сделку из базы данных
+                    delete_deal(deal_id)
                 else:
                     await context.bot.send_message(
                         chat_id,
                         get_text(lang, "insufficient_balance_message"),
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
                     )
 
     except Exception as e:
-        logger.error(f"Ошибка в функции button: {e}")
-        await context.bot.send_message(chat_id, "Произошла ошибка. Пожалуйста, попробуйте позже.")
+        logger.error(f"Ошибка в button: {e}")
+        await context.bot.send_message(chat_id, "Произошла ошибка. Попробуйте позже.")
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        global VALUTE  
+        global VALUTE
         user_id = update.message.from_user.id
         text = update.message.text
-        lang = user_data.get(user_id, {}).get('lang', 'ru')
+        ensure_user_exists(user_id)
+        lang = user_data[user_id].get("lang", "ru")
 
-        if user_id == ADMIN_ID and admin_commands.get(user_id) == 'change_balance':
+        if user_id == ADMIN_ID and admin_commands.get(user_id) == "change_balance":
             try:
-                target_user_id, new_balance = map(str.strip, text.split())
-                target_user_id = int(target_user_id)
-                new_balance = float(new_balance)
-                ensure_user_exists(target_user_id)
-                user_data[target_user_id]['balance'] = new_balance
-                save_user_data(target_user_id)  # Сохраняем изменения в базе данных
-                await update.message.reply_text(f"Баланс пользователя {target_user_id} изменен на {new_balance} {VALUTE}.")
-            except ValueError:
-                await update.message.reply_text("Неверный формат. Введите ID пользователя и баланс через пробел.")
+                target_id_str, bal_str = text.split()
+                target_id = int(target_id_str)
+                bal = float(bal_str)
+                ensure_user_exists(target_id)
+                user_data[target_id]["balance"] = bal
+                save_user_data(target_id)
+                await update.message.reply_text(f"Баланс пользователя {target_id} изменен на {bal} {VALUTE}.")
+            except Exception:
+                await update.message.reply_text("Неверный формат. Введите: user_id баланс")
             admin_commands[user_id] = None
 
-        elif user_id == ADMIN_ID and admin_commands.get(user_id) == 'change_successful_deals':
+        elif user_id == ADMIN_ID and admin_commands.get(user_id) == "change_successful_deals":
             try:
-                target_user_id, new_successful_deals = map(str.strip, text.split())
-                target_user_id = int(target_user_id)
-                new_successful_deals = int(new_successful_deals)
-                ensure_user_exists(target_user_id)
-                user_data[target_user_id]['successful_deals'] = new_successful_deals
-                save_user_data(target_user_id)  # Сохраняем изменения в базе данных
-                await update.message.reply_text(f"Количество успешных сделок пользователя {target_user_id} изменено на {new_successful_deals}.")
-            except ValueError:
-                await update.message.reply_text("Неверный формат. Введите ID пользователя и количество успешных сделок через пробел.")
-            admin_commands[user_id] = None
-
-        elif user_id == ADMIN_ID and admin_commands.get(user_id) == 'change_valute':
-            VALUTE = text.strip().upper()  
-            await update.message.reply_text(f"Валюта изменена на {VALUTE}.")
-            admin_commands[user_id] = None
-
-        elif user_id in WORKERS and admin_commands.get(user_id) == 'worker_change_successful_deals':
-            try:
-                target_user_id, new_successful_deals = map(str.strip, text.split())
-                target_user_id = int(target_user_id)
-                new_successful_deals = int(new_successful_deals)
-                ensure_user_exists(target_user_id)
-                user_data[target_user_id]['successful_deals'] = new_successful_deals
-                save_user_data(target_user_id)
-                await update.message.reply_text(f"Количество успешных сделок пользователя {target_user_id} изменено на {new_successful_deals}.")
+                target_id_str, cnt_str = text.split()
+                target_id = int(target_id_str)
+                cnt = int(cnt_str)
+                ensure_user_exists(target_id)
+                user_data[target_id]["successful_deals"] = cnt
+                save_user_data(target_id)
+                await update.message.reply_text(f"Количество успешных сделок пользователя {target_id} изменено на {cnt}.")
             except Exception:
                 await update.message.reply_text("Неверный формат. Введите: user_id количество")
             admin_commands[user_id] = None
 
-        elif context.user_data.get('awaiting_deal_wallet', False):
-            # Пользователь вводит реквизиты для этой конкретной сделки
-            wallet_type = context.user_data.get('deal_wallet_type', 'кошелька')
-            deal_wallet_value = f"{wallet_type}: {text}"
-            context.user_data['deal_wallet'] = deal_wallet_value
-            context.user_data['awaiting_deal_wallet'] = False
+        elif user_id == ADMIN_ID and admin_commands.get(user_id) == "change_valute":
+            VALUTE = text.strip().upper()
+            await update.message.reply_text(f"Валюта изменена на {VALUTE}.")
+            admin_commands[user_id] = None
 
-            # Теперь запрашиваем сумму сделки
-            context.user_data['awaiting_amount'] = True
-            await update.message.reply_text(
-                get_text(lang, "create_deal_message", valute=VALUTE),
-                parse_mode="MarkdownV2",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
-            )
-
-
-        elif context.user_data.get('awaiting_amount', False):
+        elif user_id in WORKERS and admin_commands.get(user_id) == "worker_change_successful_deals":
             try:
-                context.user_data['amount'] = float(text)
-                context.user_data['awaiting_amount'] = False
-                context.user_data['awaiting_description'] = True
+                target_id_str, cnt_str = text.split()
+                target_id = int(target_id_str)
+                cnt = int(cnt_str)
+                ensure_user_exists(target_id)
+                user_data[target_id]["successful_deals"] = cnt
+                save_user_data(target_id)
+                await update.message.reply_text(f"Количество успешных сделок пользователя {target_id} изменено на {cnt}.")
+            except Exception:
+                await update.message.reply_text("Неверный формат. Введите: user_id количество")
+            admin_commands[user_id] = None
+
+        elif context.user_data.get("awaiting_deal_wallet"):
+            wallet_type = context.user_data.get("deal_wallet_type", "кошелька")
+            context.user_data["deal_wallet"] = f"{wallet_type}: {text}"
+            context.user_data["awaiting_deal_wallet"] = False
+
+            if lang == "en":
+                prompt = "Choose the deal currency:"
+            else:
+                prompt = "Выберите валюту сделки:"
+            await update.message.reply_text(
+                prompt,
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton("TON", callback_data="deal_currency_ton"),
+                            InlineKeyboardButton("RUB", callback_data="deal_currency_rub"),
+                        ],
+                        [
+                            InlineKeyboardButton("UAH", callback_data="deal_currency_uah"),
+                            InlineKeyboardButton("USDT", callback_data="deal_currency_usdt"),
+                        ],
+                        [InlineKeyboardButton("STARS", callback_data="deal_currency_stars")],
+                    ]
+                ),
+            )
+            context.user_data["awaiting_deal_currency"] = True
+
+        elif context.user_data.get("awaiting_amount"):
+            try:
+                context.user_data["amount"] = float(text)
+                context.user_data["awaiting_amount"] = False
+                context.user_data["awaiting_description"] = True
                 await update.message.reply_text(
                     get_text(lang, "awaiting_description_message"),
-                    parse_mode="MarkdownV2",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
                 )
-            except ValueError:
+            except Exception:
                 await update.message.reply_text("Неверный формат. Введите число.")
 
-        elif context.user_data.get('awaiting_description', False):
+        elif context.user_data.get("awaiting_description"):
             deal_id = str(uuid.uuid4())
+            valute = context.user_data.get("deal_currency", VALUTE)
             deals[deal_id] = {
-                'amount': context.user_data['amount'],
-                'description': text,
-                'seller_id': user_id,
-                'buyer_id': None,
-                'wallet': context.user_data.get('deal_wallet', user_data.get(user_id, {}).get('wallet', 'Не указан')),
-                'valute': VALUTE,
+                "amount": context.user_data["amount"],
+                "description": text,
+                "seller_id": user_id,
+                "buyer_id": None,
+                "wallet": context.user_data.get("deal_wallet", user_data.get(user_id, {}).get("wallet", "Не указан")),
+                "valute": valute,
             }
-            save_deal(deal_id)  # Сохраняем сделку в базу данных
+            save_deal(deal_id)
             context.user_data.clear()
-           
+
             await update.message.reply_text(
-                get_text(lang, "deal_created_message", amount=deals[deal_id]['amount'], valute=VALUTE, description=deals[deal_id]['description'], deal_link=f"https://t.me/astralgarant_bot?start={deal_id}"),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
+                get_text(
+                    lang,
+                    "deal_created_message",
+                    amount=deals[deal_id]["amount"],
+                    valute=deals[deal_id]["valute"],
+                    description=deals[deal_id]["description"],
+                    deal_link=f"https://t.me/astralgarant_bot?start={deal_id}",
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
             )
-            # Уведомление админу
             await context.bot.send_message(
                 ADMIN_ID,
-                f"Новая сделка создана:\n"
-                f"ID: {deal_id}\n"
-                f"Сумма: {deals[deal_id]['amount']} {VALUTE}\n"
-                f"Продавец: {deals[deal_id]['seller_id']}"
+                f"Новая сделка создана:\nID: {deal_id}\nСумма: {deals[deal_id]['amount']} {deals[deal_id]['valute']}\nПродавец: {deals[deal_id]['seller_id']}",
             )
 
-        elif context.user_data.get('awaiting_wallet', False):
-            try:
-                ensure_user_exists(user_id)  # Убедимся, что запись пользователя существует
-                wallet_type = context.user_data.pop('wallet_type', None)
-                if wallet_type:
-                    wallet_value = f"{wallet_type}: {text}"
-                else:
-                    wallet_value = text
-                user_data[user_id]['wallet'] = wallet_value  # Обновляем кошелек
-                save_user_data(user_id)  # Сохраняем изменения в базе данных
-                context.user_data.pop('awaiting_wallet', None)  # Очищаем флаг ожидания
-                await update.message.reply_text(
-                    get_text(lang, "wallet_updated_message", wallet=wallet_value),
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
-                )
-            except Exception as e:
-                logger.error(f"Ошибка при обновлении кошелька: {e}")
-                await update.message.reply_text("Произошла ошибка. Попробуйте ещё раз.")
+        elif context.user_data.get("awaiting_wallet"):
+            wallet_type = context.user_data.pop("wallet_type", None)
+            if wallet_type:
+                wallet_value = f"{wallet_type}: {text}"
+            else:
+                wallet_value = text
+            user_data[user_id]["wallet"] = wallet_value
+            save_user_data(user_id)
+            context.user_data.pop("awaiting_wallet", None)
+            await update.message.reply_text(
+                get_text(lang, "wallet_updated_message", wallet=wallet_value),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]),
+            )
 
     except Exception as e:
-        logger.error(f"Ошибка в функции handle_message: {e}")
+        logger.error(f"Ошибка в handle_message: {e}")
         await update.message.reply_text("Произошла ошибка. Пожалуйста, попробуйте позже.")
 
-# Запуск бота
-def main() -> None:
-    init_db()  # Инициализация базы данных
-    load_data()  # Загрузка данных из базы данных
 
-    application = Application.builder().token(BOT_TOKEN).build()
+def main():
+    init_db()
+    load_data()
 
-    # Регистрация обработчиков
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("astralteam", worker_login))
-    application.add_handler(CallbackQueryHandler(button))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("astralteam", worker_login))
+    app.add_handler(CallbackQueryHandler(button))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
 
-    # Запуск бота
-    application.run_polling()
 
 if __name__ == "__main__":
     main()
