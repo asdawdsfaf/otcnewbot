@@ -603,8 +603,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"Ошибка отправки сообщения продавцу: {e}")
             return
 
-        # выбор языка
-        if data.startswith("lang_"):
+                if data.startswith("lang_"):
             new_lang = data.split("_")[-1]
             user_data[user_id]["lang"] = new_lang
             save_user_data(user_id)
@@ -612,7 +611,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start(update, context)
             return
 
-                # профиль
+        # профиль
         if data == "profile":
             usr = user_data.get(user_id, {})
             username = query.from_user.username or "None"
@@ -629,6 +628,16 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 wallet=usr.get("wallet", "Не указан"),
                 sold_summary=sold_summary,
             )
+
+            await context.bot.send_message(
+                chat_id,
+                text,
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data="menu")]]
+                ),
+            )
+            return
+
 
             # ВАЖНО: отправляем новое сообщение, НЕ редактируем фото
             await context.bot.send_message(
