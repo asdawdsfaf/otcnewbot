@@ -18,6 +18,18 @@ from telegram.ext import (
 
 from messages import get_text  # Импортируем функцию для получения текста
 
+from telegram.ext import CommandHandler
+
+async def get_file_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.photo:
+        await update.message.reply_text(update.message.photo[-1].file_id)
+    else:
+        await update.message.reply_text("Пришли мне КАРТИНКУ, не файл.")
+
+# В main():
+application.add_handler(CommandHandler("get_file_id", get_file_id))
+
+
 # ---------------------- ЛОГГЕР ----------------------
 logging.basicConfig(
     level=logging.INFO,
