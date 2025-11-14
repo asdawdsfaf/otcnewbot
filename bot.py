@@ -42,7 +42,10 @@ SUPPORT_USERNAME = "@astral_helper"
 SUPPORT_CHAT_ID = int(os.getenv("SUPPORT_CHAT_ID", "0"))    # можно задать ID чата поддержки
 
 # 🔹 Баннер для старта
-BANNER_FILE_ID = os.getenv("BANNER_FILE_ID", "")
+BANNER_FILE_ID = os.getenv(
+    "BANNER_FILE_ID",
+    "AAMCAgADGQECcmJ6aRdatyB6nYzfo14JqE9eZ3RZvSgAAm-IAAIHYsBI70bHp29_KpgBAAdtAAM2BA",
+)
 
 
 # Воркеры
