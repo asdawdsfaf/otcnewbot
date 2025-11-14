@@ -505,7 +505,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_photo(
             chat_id,
-            photo="https://i.postimg.cc/8sHq27HV/astral.jpg",
+            photo="AAMCAgADGQECcmJ6aRdatyB6nYzfo14JqE9eZ3RZvSgAAm-IAAIHYsBI70bHp29_KpgBAAdtAAM2BA",
             caption=get_text(lang, "start_message"),
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
