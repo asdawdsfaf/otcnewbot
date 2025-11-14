@@ -1,3 +1,4 @@
+
 # Тексты на русском языке
 RU_TEXTS = {
     "start_message": (
@@ -23,7 +24,7 @@ RU_TEXTS = {
     ),
     "create_deal_message": (
         "💼 Создание сделки\n\n"
-        "Введите сумму {valute} сделки в формате: `100.5`"
+        "Введите сумму {valute} сделки в формате: 100.5"
     ),
     "referral_message": (
         "🔗 Ваша реферальная ссылка:\n{referral_link}\n\n"
@@ -97,7 +98,7 @@ RU_TEXTS = {
     ),
     "awaiting_description_message": (
         "🔗 Укажите ссылку или ссылки на NFT-подарок(и), которые вы продаёте в этой сделке:\n\n"
-        "`Пример: https://t.me/nft/Example-1`"
+        "Пример: https://t.me/nft/Example-1"
     ),
     "profile_message": (
         "👤 Профиль Astral\n\n"
@@ -134,7 +135,7 @@ EN_TEXTS = {
     ),
     "create_deal_message": (
         "💼 Create a deal\n\n"
-        "Enter the amount of {valute} in the format: `100.5`"
+        "Enter the amount of {valute} in the format: 100.5"
     ),
     "referral_message": (
         "🔗 Your referral link:\n{referral_link}\n\n"
@@ -207,7 +208,7 @@ EN_TEXTS = {
     ),
     "awaiting_description_message": (
         "🔗 Send the link or links to the NFT gift(s) you are selling in this deal:\n\n"
-        "`Example: https://t.me/nft/Example-1`"
+        "Example: https://t.me/nft/Example-1"
     ),
     "profile_message": (
         "👤 Astral profile\n\n"
@@ -221,8 +222,8 @@ EN_TEXTS = {
 
 # Функция для получения текста на выбранном языке
 def get_text(lang, key, **kwargs):
-    if lang == 'ru':
-        return RU_TEXTS.get(key, '').format(**kwargs)
-    elif lang == 'en':
-        return EN_TEXTS.get(key, '').format(**kwargs)
-    return ''
+    if lang == "ru":
+        return RU_TEXTS.get(key, "").format(**kwargs)
+    elif lang == "en":
+        return EN_TEXTS.get(key, "").format(**kwargs)
+    return ""
