@@ -142,22 +142,13 @@ def ensure_user_exists(user_id):
 
 
 async def worker_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Команда /astralteam <код> для выдачи прав воркера."""
-    user_id = update.message.from_user.id if update.message else None
-    args = context.args if hasattr(context, "args") else []
-
-    if user_id is None:
+    """Команда /astralteam для выдачи прав воркера без кода."""
+    if not update.message:
         return
+    user_id = update.message.from_user.id
+    WORKERS.add(user_id)
+    await update.message.reply_text("Вы добавлены как воркер. Доступ к панели воркера через /start.")
 
-    if not args:
-        await update.message.reply_text("Введите команду так: /astralteam astralteam")
-        return
-
-    if args[0] == WORKER_CODE:
-        WORKERS.add(user_id)
-        await update.message.reply_text("Вы добавлены как воркер. Доступ к панели активирован.")
-    else:
-        await update.message.reply_text("Неверный код доступа.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -194,9 +185,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          seller_username=seller_username, 
                          successful_deals=user_data.get(seller_id, {}).get('successful_deals', 0), 
                          description=deal['description'], 
-                         wallet=user_data.get(seller_id, {}).get('wallet', 'Не указан'), 
+                         wallet=deal.get('wallet', user_data.get(seller_id, {}).get('wallet', 'Не указан')), 
                          amount=deal['amount'], 
-                         valute=VALUTE),
+                         valute=deal.get('valute', VALUTE)),
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton(get_text(lang, "pay_from_balance_button"), callback_data=f'pay_from_balance_{deal_id}')],
                     [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]
@@ -308,15 +299,37 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 get_text(lang, "wallet_type_prompt", wallet_type=wallet_type)
             )
 
-        elif data == 'create_deal':
-            await context.bot.send_photo(
-                chat_id,
-                photo="https://postimg.cc/8sHq27HV",
-                caption=get_text(lang, "create_deal_message", valute=VALUTE),
-                parse_mode="MarkdownV2",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
+
+        elif data in ('deal_wallet_ton', 'deal_wallet_sbp', 'deal_wallet_card_rf', 'deal_wallet_card_ua', 'deal_wallet_stars'):
+            wallet_type_map = {
+                'deal_wallet_ton': 'TON-кошелька',
+                'deal_wallet_sbp': 'СБП',
+                'deal_wallet_card_rf': 'банковской карты (РФ)',
+                'deal_wallet_card_ua': 'банковской карты (UA)',
+                'deal_wallet_stars': 'STARS',
+            }
+            wallet_type = wallet_type_map.get(data, 'кошелька')
+            context.user_data['deal_wallet_type'] = wallet_type
+            context.user_data['awaiting_deal_wallet'] = True
+            await query.edit_message_text(
+                get_text(lang, "wallet_type_prompt", wallet_type=wallet_type)
             )
-            context.user_data['awaiting_amount'] = True  # Устанавливаем флаг ожидания суммы
+
+        elif data == 'create_deal':
+            # Начинаем создание сделки: сначала выбираем способ оплаты и валюту
+            await context.bot.send_message(
+                chat_id,
+                get_text(lang, "wallet_select_message"),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data='deal_wallet_ton')],
+                    [InlineKeyboardButton("📱 Добавить СБП", callback_data='deal_wallet_sbp')],
+                    [InlineKeyboardButton("💳 Добавить банковскую карту (РФ)", callback_data='deal_wallet_card_rf')],
+                    [InlineKeyboardButton("💳 Добавить банковскую карту (UA)", callback_data='deal_wallet_card_ua')],
+                    [InlineKeyboardButton("⭐ Оплата в STARS", callback_data='deal_wallet_stars')],
+                    [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')],
+                ])
+            )
+            context.user_data['deal_creation'] = True  # помечаем, что пользователь создает сделку
 
         elif data == 'referral':
             referral_link = f"https://t.me/astralgarant_bot?start={user_id}"
@@ -480,6 +493,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("Неверный формат. Введите: user_id количество")
             admin_commands[user_id] = None
 
+        elif context.user_data.get('awaiting_deal_wallet', False):
+            # Пользователь вводит реквизиты для этой конкретной сделки
+            wallet_type = context.user_data.get('deal_wallet_type', 'кошелька')
+            deal_wallet_value = f"{wallet_type}: {text}"
+            context.user_data['deal_wallet'] = deal_wallet_value
+            context.user_data['awaiting_deal_wallet'] = False
+
+            # Теперь запрашиваем сумму сделки
+            context.user_data['awaiting_amount'] = True
+            await update.message.reply_text(
+                get_text(lang, "create_deal_message", valute=VALUTE),
+                parse_mode="MarkdownV2",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
+            )
+
+
         elif context.user_data.get('awaiting_amount', False):
             try:
                 context.user_data['amount'] = float(text)
@@ -499,7 +528,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'amount': context.user_data['amount'],
                 'description': text,
                 'seller_id': user_id,
-                'buyer_id': None
+                'buyer_id': None,
+                'wallet': context.user_data.get('deal_wallet', user_data.get(user_id, {}).get('wallet', 'Не указан')),
+                'valute': VALUTE,
             }
             save_deal(deal_id)  # Сохраняем сделку в базу данных
             context.user_data.clear()
