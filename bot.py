@@ -41,6 +41,10 @@ VALUTE = "TON"  # базовая валюта по умолчанию
 SUPPORT_USERNAME = "@astral_helper"
 SUPPORT_CHAT_ID = int(os.getenv("SUPPORT_CHAT_ID", "0"))    # можно задать ID чата поддержки
 
+# 🔹 Баннер для старта
+BANNER_FILE_ID = os.getenv("BANNER_FILE_ID", "")
+
+
 # Воркеры
 WORKERS = set()
 
@@ -493,7 +497,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # обычное меню (с кнопкой профиля)
+        # обычное меню (для продавцов/покупателей)
         keyboard = [
             [InlineKeyboardButton(get_text(lang, "create_deal_button"), callback_data="create_deal")],
             [InlineKeyboardButton(get_text(lang, "add_wallet_button"), callback_data="wallet")],
@@ -503,12 +507,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton(get_text(lang, "support_button"), url="https://t.me/otcgifttg/113382/113404")],
         ]
 
-        await context.bot.send_photo(
-            chat_id,
-            photo="AAMCAgADGQECcmJ6aRdatyB6nYzfo14JqE9eZ3RZvSgAAm-IAAIHYsBI70bHp29_KpgBAAdtAAM2BA",
-            caption=get_text(lang, "start_message"),
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+        # Пытаемся отправить баннер-картинку, если задан BANNER_FILE_ID
+        if BANNER_FILE_ID:
+            try:
+                await context.bot.send_photo(
+                    chat_id,
+                    photo=BANNER_FILE_ID,
+                    caption=get_text(lang, "start_message"),
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
+            except Exception as e:
+                logger.error(f"Ошибка отправки баннера: {e}")
+                # Фолбэк — просто текст, чтобы не было «Произошла ошибка»
+                await context.bot.send_message(
+                    chat_id,
+                    get_text(lang, "start_message"),
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
+        else:
+            # Если баннер не задан — просто текстовое приветствие
+            await context.bot.send_message(
+                chat_id,
+                get_text(lang, "start_message"),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+
     except Exception as e:
         logger.error(f"Ошибка в start: {e}")
         if chat_id:
