@@ -1,3 +1,4 @@
+
 # Тексты на русском языке
 RU_TEXTS = {
     "start_message": (
@@ -67,9 +68,10 @@ RU_TEXTS = {
     "admin_change_successful_deals_message": "Введите ID пользователя и количество успешных сделок в формате: user_id количество",
     "admin_change_valute_message": "Введите новую валюту (например, USD, EUR, RUB):",
     "menu_button": "🔙Вернуться в меню",
-    "pay_from_balance_button": "Оплатить с баланса",
+    "pay_from_balance_button": "✅ Подтвердить оплату",
     "add_wallet_button": "🪙Добавить/изменить кошелёк",
     "create_deal_button": "📄Создать сделку",
+    "profile_button": "👤Профиль",
     "referral_button": "🧷Реферальная ссылка",
     "change_lang_button": "🌐Change language",
     "support_button": "📞Поддержка",
@@ -94,6 +96,14 @@ RU_TEXTS = {
     "awaiting_description_message": (
         "📝 Укажите, что вы предлагаете в этой сделке:\n\n"
         "`Пример: 10 Кепок и Пепе...`"
+    ),
+    "profile_message": (
+        "👤 Профиль Astral\n\n"
+        "ID: {user_id}\n"
+        "Юзернейм: @{username}\n"
+        "Успешные сделки: {successful_deals}\n"
+        "Баланс: {balance} {valute}\n"
+        "Текущий кошелёк: {wallet}"
     ),
 }
 
@@ -166,9 +176,10 @@ EN_TEXTS = {
     "admin_change_successful_deals_message": "Enter user ID and number of successful deals in the format: user_id count",
     "admin_change_valute_message": "Enter new currency (e.g., USD, EUR, RUB):",
     "menu_button": "🔙Back to menu",
-    "pay_from_balance_button": "Pay from balance",
+    "pay_from_balance_button": "✅ Confirm payment",
     "add_wallet_button": "🪙Add/change wallet",
     "create_deal_button": "📄Create deal",
+    "profile_button": "👤Profile",
     "referral_button": "🧷Referral link",
     "change_lang_button": "🌐Change language",
     "support_button": "📞Support",
@@ -193,6 +204,14 @@ EN_TEXTS = {
     "awaiting_description_message": (
         "📝 Specify what you are offering in this deal:\n\n"
         "`Example: 10 Caps and Pepe...`"
+    ),
+    "profile_message": (
+        "👤 Astral profile\n\n"
+        "ID: {user_id}\n"
+        "Username: @{username}\n"
+        "Successful deals: {successful_deals}\n"
+        "Balance: {balance} {valute}\n"
+        "Current wallet: {wallet}"
     ),
 }
 
