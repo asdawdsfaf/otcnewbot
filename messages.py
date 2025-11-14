@@ -14,6 +14,13 @@ RU_TEXTS = {
         "💼 Ваш текущий кошелек: {wallet}\n\n"
         "Отправьте новые реквизиты кошелька для изменения или нажмите кнопку ниже для возврата в меню."
     ),
+    "wallet_select_message": (
+        "💼 Добавьте ваш способ оплаты:\n\n"
+        "Пожалуйста, выберите тип кошелька ниже:"
+    ),
+    "wallet_type_prompt": (
+        "Пожалуйста, введите реквизиты для {wallet_type}:"
+    ),
     "create_deal_message": (
         "💼 Создание сделки\n\n"
         "Введите сумму {valute} сделки в формате: `100.5`"
@@ -105,6 +112,13 @@ EN_TEXTS = {
     "wallet_message": (
         "💼 Your current wallet: {wallet}\n\n"
         "Send new wallet details to update or click the button below to return to the menu."
+    ),
+    "wallet_select_message": (
+        "💼 Add your payment method:\n\n"
+        "Please choose the wallet type below:"
+    ),
+    "wallet_type_prompt": (
+        "Please enter the details for {wallet_type}:"
     ),
     "create_deal_message": (
         "💼 Create a deal\n\n"
