@@ -1,8 +1,8 @@
-
 import sqlite3
 import uuid
 import logging
 import os
+import re
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -29,14 +29,19 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+URL_REGEX = re.compile(r"https?://\S+")
+
 # ---------------------- КОНФИГ ----------------------
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8533478970:AAFLJ2aG3ip32Htuh5GwSQpaEs1_kUWGbAw")  # не забудь задать на Railway
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")  # не забудь задать на Railway
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7074282438"))         # ID администратора
 VALUTE = "TON"  # базовая валюта по умолчанию
 
+SUPPORT_USERNAME = "@astral_helper"
+SUPPORT_CHAT_ID = int(os.getenv("SUPPORT_CHAT_ID", "0"))    # можно задать ID чата поддержки
+
 # Воркеры
 WORKERS = set()
-WORKER_CODE = "astralteam"  # оставляем для совместимости, если когда‑нибудь понадобится
+WORKER_CODE = "astralteam"  # оставляем для совместимости, если когда-нибудь понадобится
 
 # Память в рантайме
 user_data = {}      # {user_id: {wallet, balance, successful_deals, lang}}
@@ -351,12 +356,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # обычное меню
+        # обычное меню (без кнопки профиля)
         keyboard = [
-            [
-                InlineKeyboardButton(get_text(lang, "create_deal_button"), callback_data="create_deal"),
-                InlineKeyboardButton(get_text(lang, "profile_button"), callback_data="profile"),
-            ],
+            [InlineKeyboardButton(get_text(lang, "create_deal_button"), callback_data="create_deal")],
             [InlineKeyboardButton(get_text(lang, "add_wallet_button"), callback_data="wallet")],
             [InlineKeyboardButton(get_text(lang, "referral_button"), callback_data="referral")],
             [InlineKeyboardButton(get_text(lang, "change_lang_button"), callback_data="change_lang")],
@@ -400,6 +402,27 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user_data.get(user_id, {}).get("lang", "ru")
 
     try:
+        # продавец сообщил, что отправил подарки
+        if data.startswith("seller_sent_"):
+            deal_id = data.split("_")[-1]
+
+            await query.edit_message_text(
+                "✅ Спасибо! Мы передадим информацию в поддержку.\n\n"
+                f"Если вы ещё не отправили NFT-подарок(и) в {SUPPORT_USERNAME}, обязательно сделайте это."
+            )
+
+            target_chat = SUPPORT_CHAT_ID if SUPPORT_CHAT_ID != 0 else ADMIN_ID
+            seller_username = query.from_user.username or query.from_user.id
+            notify_text = (
+                f"🎁 Продавец @{seller_username} нажал кнопку «Я отправил-(а)» "
+                f"по сделке #{deal_id}."
+            )
+            try:
+                await context.bot.send_message(target_chat, notify_text)
+            except Exception as e:
+                logger.error(f"Ошибка отправки уведомления поддержке: {e}")
+            return
+
         # выбор языка
         if data.startswith("lang_"):
             new_lang = data.split("_")[-1]
@@ -409,7 +432,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start(update, context)
             return
 
-        # профиль
+        # профиль (кнопку убрали из меню, но обработчик оставим на всякий случай)
         if data == "profile":
             usr = user_data.get(user_id, {})
             username = query.from_user.username or "None"
@@ -640,6 +663,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     description=deal["description"],
                     buyer_username=buyer_username,
                 ),
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
+                            InlineKeyboardButton(
+                                "✅ Я отправил-(а)", callback_data=f"seller_sent_{deal_id}"
+                            )
+                        ]
+                    ]
+                ),
             )
 
             # увеличиваем успешные сделки продавца
@@ -762,16 +794,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("Неверный формат. Введите число, например 100 или 100.5")
             return
 
-        # --- создание сделки: описание и финальное сохранение ---
+        # --- создание сделки: ссылки на NFT и финальное сохранение ---
         if context.user_data.get("awaiting_description"):
+            parts = text.split()
+            links = [part for part in parts if URL_REGEX.match(part)]
+
+            if not links:
+                if lang == "ru":
+                    msg = (
+                        "❌ В этом боте можно продавать только NFT-подарки.\n\n"
+                        "Отправьте ссылку или несколько ссылок на NFT-подарок(и).\n"
+                        "Пример:\n"
+                        "https://t.me/nft/Example-1"
+                    )
+                else:
+                    msg = (
+                        "❌ This bot is only for NFT gifts.\n\n"
+                        "Please send one or more NFT links.\n"
+                        "Example:\n"
+                        "https://t.me/nft/Example-1"
+                    )
+                await update.message.reply_text(msg)
+                return
+
+            description_links = "\n".join(links)
+
             deal_id = str(uuid.uuid4())
             amount = context.user_data.get("amount", 0.0)
-            deal_wallet = context.user_data.get("deal_wallet", user_data.get(user_id, {}).get("wallet", "Не указан"))
+            deal_wallet = context.user_data.get(
+                "deal_wallet", user_data.get(user_id, {}).get("wallet", "Не указан")
+            )
             deal_valute = context.user_data.get("deal_valute", VALUTE)
 
             deals[deal_id] = {
                 "amount": amount,
-                "description": text,
+                "description": description_links,
                 "seller_id": user_id,
                 "buyer_id": None,
                 "wallet": deal_wallet,
@@ -786,7 +843,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "deal_created_message",
                     amount=amount,
                     valute=deal_valute,
-                    description=text,
+                    description=description_links,
                     deal_link=f"https://t.me/astralgarant_bot?start={deal_id}",
                 ),
                 reply_markup=InlineKeyboardMarkup(
