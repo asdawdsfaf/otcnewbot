@@ -1,7 +1,7 @@
 # Тексты на русском языке
 RU_TEXTS = {
     "start_message": (
-        "Добро пожаловать в ELF OTC – надежный P2P-гарант\n\n"
+        "Добро пожаловать в Astral OTC – надежный P2P-гарант\n\n"
         "💼 Покупайте и продавайте всё, что угодно – безопасно!\n"
         "От Telegram-подарков и NFT до токенов и фиата – сделки проходят легко и без риска.\n\n"
         "🔹 Удобное управление кошельками\n"
@@ -100,7 +100,7 @@ RU_TEXTS = {
 # Тексты на английском языке
 EN_TEXTS = {
     "start_message": (
-        "Welcome to ELF OTC – a reliable P2P guarantor\n\n"
+        "Welcome to Astral OTC – a reliable P2P guarantor\n\n"
         "💼 Buy and sell anything – safely!\n"
         "From Telegram gifts and NFTs to tokens and fiat – transactions are easy and risk-free.\n\n"
         "🔹 Convenient wallet management\n"
