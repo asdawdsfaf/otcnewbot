@@ -8,8 +8,9 @@ RU_TEXTS = {
         "🔹 Удобное управление кошельками\n"
         "🔹 Реферальная система\n\n"
         "📖 Как пользоваться?\n"
-        "Ознакомьтесь с инструкцией — https://telegra.ph/Astral-P2P-Guarantor--Instrukciya-11-14"
+        "Ознакомьтесь с инструкцией — https://telegra.ph/Astral-P2P-Guarantor--Instrukciya-11-14\n"
         "Выберите нужный раздел ниже:"
+
     ),
     "wallet_message": (
         "💼 Ваш текущий кошелек: {wallet}\n\n"
