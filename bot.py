@@ -1,9 +1,10 @@
 
 import sqlite3
-import uuid
 import logging
 import os
 import re
+import random
+import string
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -125,6 +126,20 @@ def init_db():
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sold_nfts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            deal_id TEXT,
+            amount REAL,
+            valute TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
     conn.commit()
     conn.close()
 
@@ -235,6 +250,62 @@ def get_user_wallet(user_id: int, wallet_code: str):
     return user_wallets.get(user_id, {}).get(wallet_code)
 
 
+def record_sold_nft(user_id: int, deal_id: str, amount: float, valute: str, description: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO sold_nfts (user_id, deal_id, amount, valute, description)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (user_id, deal_id, amount, valute, description),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_sold_summary(user_id: int, lang: str) -> str:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT deal_id, amount, valute, description, created_at
+        FROM sold_nfts
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 5
+        """,
+        (user_id,),
+    )
+    rows = cursor.fetchall()
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM sold_nfts WHERE user_id = ?", (user_id,)
+    )
+    total = cursor.fetchone()[0] or 0
+
+    conn.close()
+
+    if not rows:
+        return "Пока нет проданных NFT." if lang == "ru" else "No sold NFTs yet."
+
+    lines = []
+    for deal_id, amount, valute, description, created_at in rows:
+        first_link = (description or "").splitlines()[0] if description else ""
+        if lang == "ru":
+            lines.append(f"• #{deal_id}: {amount} {valute}\n  {first_link}")
+        else:
+            lines.append(f"• #{deal_id}: {amount} {valute}\n  {first_link}")
+
+    if total > len(rows):
+        if lang == "ru":
+            lines.append(f"… и ещё {total - len(rows)} сделок.")
+        else:
+            lines.append(f"… and {total - len(rows)} more deals.")
+
+    return "\n".join(lines)
+
+
 def ensure_user_exists(user_id: int):
     if user_id not in user_data:
         user_data[user_id] = {
@@ -244,6 +315,14 @@ def ensure_user_exists(user_id: int):
             "lang": "ru",
         }
         save_user_data(user_id)
+
+
+def generate_deal_id() -> str:
+    """Короткий ID сделки вида 2NE1QKQM (8 символов)."""
+    while True:
+        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        if code not in deals:
+            return code
 
 
 # ---------------------- ВОРКЕРЫ ----------------------
@@ -415,10 +494,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # обычное меню (без кнопки профиля)
+        # обычное меню (с кнопкой профиля)
         keyboard = [
             [InlineKeyboardButton(get_text(lang, "create_deal_button"), callback_data="create_deal")],
             [InlineKeyboardButton(get_text(lang, "add_wallet_button"), callback_data="wallet")],
+            [InlineKeyboardButton(get_text(lang, "profile_button"), callback_data="profile")],
             [InlineKeyboardButton(get_text(lang, "referral_button"), callback_data="referral")],
             [InlineKeyboardButton(get_text(lang, "change_lang_button"), callback_data="change_lang")],
             [InlineKeyboardButton(get_text(lang, "support_button"), url="https://t.me/otcgifttg/113382/113404")],
@@ -477,9 +557,51 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"по сделке #{deal_id}."
             )
             try:
-                await context.bot.send_message(target_chat, notify_text)
+                await context.bot.send_message(
+                    target_chat,
+                    notify_text,
+                    reply_markup=InlineKeyboardMarkup(
+                        [
+                            [
+                                InlineKeyboardButton(
+                                    "✅ Подтвердить получение",
+                                    callback_data=f"worker_confirm:{deal_id}:{query.from_user.id}",
+                                )
+                            ]
+                        ]
+                    ),
+                )
             except Exception as e:
                 logger.error(f"Ошибка отправки уведомления поддержке: {e}")
+            return
+
+        # воркер подтверждает получение подарка
+        if data.startswith("worker_confirm:"):
+            try:
+                _, deal_id, seller_id_str = data.split(":")
+                seller_id = int(seller_id_str)
+            except Exception:
+                await query.edit_message_text("Ошибка формата ID сделки.")
+                return
+
+            await query.edit_message_text(f"✅ Получение по сделке #{deal_id} подтверждено.")
+
+            seller_lang = user_data.get(seller_id, {}).get("lang", "ru")
+            if seller_lang == "ru":
+                msg = (
+                    f"✅ Воркер подтвердил получение подарка по сделке #{deal_id}.\n\n"
+                    "Деньги были зачислены на вашу карту."
+                )
+            else:
+                msg = (
+                    f"✅ Worker confirmed the gift for deal #{deal_id}.\n\n"
+                    "Funds have been credited to your card."
+                )
+
+            try:
+                await context.bot.send_message(seller_id, msg)
+            except Exception as e:
+                logger.error(f"Ошибка отправки сообщения продавцу: {e}")
             return
 
         # выбор языка
@@ -491,10 +613,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await start(update, context)
             return
 
-        # профиль (оставляем на случай, если где-то будет кнопка)
+        # профиль
         if data == "profile":
             usr = user_data.get(user_id, {})
             username = query.from_user.username or "None"
+            sold_summary = get_sold_summary(user_id, lang)
             text = get_text(
                 lang,
                 "profile_message",
@@ -504,6 +627,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 balance=usr.get("balance", 0.0),
                 valute=VALUTE,
                 wallet=usr.get("wallet", "Не указан"),
+                sold_summary=sold_summary,
             )
             await query.edit_message_text(
                 text,
@@ -706,7 +830,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 save_user_data(buyer_id)
                 save_user_data(seller_id)
 
-            # уведомление покупателю
+            # фиксация продажи для профиля продавца
+            record_sold_nft(seller_id, deal_id, amount, valute, deal["description"])
+
+            # уведомление покупателю (только об оплате, сделка ещё не завершена)
             await context.bot.send_message(
                 chat_id,
                 get_text(
@@ -750,9 +877,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_data[seller_id]["successful_deals"] += 1
             save_user_data(seller_id)
 
-            # удаляем сделку
-            deals.pop(deal_id, None)
-            delete_deal(deal_id)
+            # сделку из БД пока не удаляем — ID нужен в истории проданных NFT и до финального подтверждения
             return
 
     except Exception as e:
@@ -894,7 +1019,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             description_links = "\n".join(links)
 
-            deal_id = str(uuid.uuid4())
+            deal_id = generate_deal_id()
             amount = context.user_data.get("amount", 0.0)
             deal_wallet = context.user_data.get(
                 "deal_wallet", user_data.get(user_id, {}).get("wallet", "Не указан")
