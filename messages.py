@@ -44,10 +44,10 @@ RU_TEXTS = {
         "🔗 Ссылка для покупателя: {deal_link}"
     ),
     "payment_confirmed_message": (
-        "✅ Оплата подтверждена для сделки #{deal_id}\n\n"
+        "✅ Оплата принята по сделке #{deal_id}\n\n"
         "💰 Сумма: {amount} {valute}\n"
         "🎁 NFT-подарок(и):\n{description}\n\n"
-        "🔗 Сделка завершена."
+        "Ожидайте, пока продавец отправит подарок."
     ),
     "payment_confirmed_seller_message": (
         "✅ Оплата подтверждена для сделки #{deal_id}\n\n"
@@ -106,7 +106,8 @@ RU_TEXTS = {
         "Юзернейм: @{username}\n"
         "Успешные сделки: {successful_deals}\n"
         "Баланс: {balance} {valute}\n"
-        "Текущий кошелёк: {wallet}"
+        "Текущий кошелёк: {wallet}\n\n"
+        "Проданные NFT:\n{sold_summary}"
     ),
 }
 
@@ -155,10 +156,10 @@ EN_TEXTS = {
         "🔗 Buyer link: {deal_link}"
     ),
     "payment_confirmed_message": (
-        "✅ Payment confirmed for deal #{deal_id}\n\n"
+        "✅ Payment received for deal #{deal_id}\n\n"
         "💰 Amount: {amount} {valute}\n"
         "🎁 NFT gift(s):\n{description}\n\n"
-        "🔗 Deal completed."
+        "Please wait while the seller sends the gift."
     ),
     "payment_confirmed_seller_message": (
         "✅ Payment confirmed for deal #{deal_id}\n\n"
@@ -216,7 +217,8 @@ EN_TEXTS = {
         "Username: @{username}\n"
         "Successful deals: {successful_deals}\n"
         "Balance: {balance} {valute}\n"
-        "Current wallet: {wallet}"
+        "Current wallet: {wallet}\n\n"
+        "Sold NFTs:\n{sold_summary}"
     ),
 }
 
