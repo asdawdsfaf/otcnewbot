@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 URL_REGEX = re.compile(r"https?://\S+")
 
 # ---------------------- КОНФИГ ----------------------
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")  # не забудь задать на Railway
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8533478970:AAFLJ2aG3ip32Htuh5GwSQpaEs1_kUWGbAw")  # не забудь задать на Railway
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7074282438"))         # ID администратора
 VALUTE = "TON"  # базовая валюта по умолчанию
 
