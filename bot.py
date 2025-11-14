@@ -276,23 +276,37 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Остальные условия обработки кнопок
         elif data == 'wallet':
             try:
-                wallet = user_data.get(user_id, {}).get('wallet', None)
-                if wallet:
-                    await context.bot.send_message(
-                        chat_id,
-                        get_text(lang, "wallet_message", wallet=wallet),
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
-                    )
-                else:
-                    await context.bot.send_message(
-                        chat_id,
-                        get_text(lang, "wallet_message", wallet="Не указан"),
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
-                    )
-                context.user_data['awaiting_wallet'] = True  # Устанавливаем флаг ожидания кошелька
+                # Показать выбор типа кошелька
+                await context.bot.send_message(
+                    chat_id,
+                    get_text(lang, "wallet_select_message"),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💎 Добавить TON-кошелек", callback_data='wallet_ton')],
+                        [InlineKeyboardButton("📱 Добавить СБП", callback_data='wallet_sbp')],
+                        [InlineKeyboardButton("💳 Добавить банковскую карту (РФ)", callback_data='wallet_card_rf')],
+                        [InlineKeyboardButton("💳 Добавить банковскую карту (UA)", callback_data='wallet_card_ua')],
+                        [InlineKeyboardButton("⭐ Оплата в STARS", callback_data='wallet_stars')],
+                        [InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')],
+                    ])
+                )
             except Exception as e:
                 logger.error(f"Ошибка в обработке кнопки 'wallet': {e}")
-                await query.edit_message_text("Произошла ошибка. БЛЯДЬ НАХУЙ СУКА")
+                await query.edit_message_text("Произошла ошибка при выборе кошелька.")
+
+        elif data in ('wallet_ton', 'wallet_sbp', 'wallet_card_rf', 'wallet_card_ua', 'wallet_stars'):
+            wallet_type_map = {
+                'wallet_ton': 'TON-кошелька',
+                'wallet_sbp': 'СБП',
+                'wallet_card_rf': 'банковской карты (РФ)',
+                'wallet_card_ua': 'банковской карты (UA)',
+                'wallet_stars': 'STARS',
+            }
+            wallet_type = wallet_type_map.get(data, 'кошелька')
+            context.user_data['awaiting_wallet'] = True
+            context.user_data['wallet_type'] = wallet_type
+            await query.edit_message_text(
+                get_text(lang, "wallet_type_prompt", wallet_type=wallet_type)
+            )
 
         elif data == 'create_deal':
             await context.bot.send_photo(
@@ -506,16 +520,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif context.user_data.get('awaiting_wallet', False):
             try:
                 ensure_user_exists(user_id)  # Убедимся, что запись пользователя существует
-                user_data[user_id]['wallet'] = text  # Обновляем кошелек
+                wallet_type = context.user_data.pop('wallet_type', None)
+                if wallet_type:
+                    wallet_value = f"{wallet_type}: {text}"
+                else:
+                    wallet_value = text
+                user_data[user_id]['wallet'] = wallet_value  # Обновляем кошелек
                 save_user_data(user_id)  # Сохраняем изменения в базе данных
                 context.user_data.pop('awaiting_wallet', None)  # Очищаем флаг ожидания
                 await update.message.reply_text(
-                    get_text(lang, "wallet_updated_message", wallet=text),
+                    get_text(lang, "wallet_updated_message", wallet=wallet_value),
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(get_text(lang, "menu_button"), callback_data='menu')]])
                 )
             except Exception as e:
                 logger.error(f"Ошибка при обновлении кошелька: {e}")
-                await update.message.reply_text("Произошла ошибка. ОТСОСИ.")
+                await update.message.reply_text("Произошла ошибка. Попробуйте ещё раз.")
 
     except Exception as e:
         logger.error(f"Ошибка в функции handle_message: {e}")
